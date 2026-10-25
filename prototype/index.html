@@ -392,64 +392,155 @@ ul.plain li { margin: 3px 0; } ul.plain b { color: var(--ink); }
 .report .kv { font-size: 12px; }
 .t-stats small { display: block; font-size: 11px; color: var(--muted); }
 .puttstep { font: 600 14px/1.3 var(--f-num); color: #fff; min-height: 1.3em; }
+
+/* ---------- prototype 3 ---------- */
+.seg { display: inline-flex; border: 1px solid rgba(255,255,255,0.25); border-radius: 4px; overflow: hidden; }
+.seg button { border: 0; background: var(--board-2); color: #cfe6d8; padding: 6px 8px; font: 700 13px/1 var(--f-num); letter-spacing: 0.04em; }
+.seg button.on { background: var(--slot); color: var(--ink); }
+.slots { grid-auto-flow: row; }
+.slot.small output { font-size: 20px; }
+.cur { display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; border-radius: 3px; font: 800 10px/1 var(--f-num); margin-right: 3px; color: #fff; vertical-align: 1px; padding: 0 2px; }
+.cur-data { background: #2f7de1; } .cur-shards { background: #8d4fd1; } .cur-medals { background: #c48a10; } .cur-stars { background: var(--red); } .cur-bags { background: #b07a45; } .cur-yards { background: #3f9a52; }
+.gatetag { font: 800 12px/1 var(--f-num); background: #c8281e; color: #fff; padding: 3px 6px; border-radius: 3px; vertical-align: 4px; letter-spacing: 0.08em; }
+.coursestrip { grid-template-columns: repeat(24, minmax(0, 1fr)); }
+.coursestrip div.gate { box-shadow: inset 0 -3px 0 #e8453c; }
+.stage canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+.stage.split { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: #072218; }
+.stage.split::before, .stage.split::after { position: absolute; top: 8px; z-index: 2; font: 800 12px/1 var(--f-num); background: rgba(8,30,22,0.8); color: #fff; padding: 4px 7px; border-radius: 3px; letter-spacing: 0.1em; }
+.stage.split::before { content: "A · SIDE"; left: 8px; }
+.stage.split::after { content: "B · RANGE"; left: calc(50% + 9px); }
+#banner { position: absolute; left: 50%; top: 18%; transform: translate(-50%, -6px); text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.25s, transform 0.25s; z-index: 3; }
+#banner.show { opacity: 1; transform: translate(-50%, 0); }
+#banner b { display: block; font: 800 clamp(24px, 4vw, 44px)/1 var(--f-num); letter-spacing: 0.03em; text-shadow: 0 2px 0 rgba(8,30,22,0.6), 0 0 12px rgba(8,30,22,0.5); }
+#banner span { display: block; margin-top: 6px; font: 600 clamp(13px, 1.6vw, 19px)/1.2 var(--f-num); color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+.reqline { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; font: 600 14px/1.35 var(--f-num); }
+.reqline.alert { background: #fff1ee; border-color: #e8a59a; }
+.reqline .btn { margin-left: 6px; }
+.dailychip { border: 0; background: var(--gold); color: #1d1606; border-radius: 4px; font: 800 13px/1 var(--f-num); padding: 7px 10px; letter-spacing: 0.06em; text-transform: uppercase; animation: bob 1s ease-in-out infinite; }
+.uprow .tag.warn { background: #fde7c2; color: #8a5a10; }
+.prof { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 10px; align-items: center; }
+.mini.big { width: 60px; height: 72px; }
+.meter { margin-top: 6px; }
+.meter .ml { display: flex; justify-content: space-between; font: 600 13px/1.2 var(--f-num); }
+.meter.ok .pbar i { background: var(--fair); } .meter.bad .pbar i { background: #e8453c; } .meter.bad b { color: var(--red); }
+.helper { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; align-items: center; border: 1px solid var(--line); background: #fff; border-radius: 5px; padding: 6px 8px; }
+.helper .nm { font: 700 15px/1.1 var(--f-num); }
+.helper .ef { font-size: 12px; color: var(--muted); }
+.types { display: flex; gap: 4px; margin: 4px 0; flex-wrap: wrap; }
+.tbtn { border: 1px solid var(--tc); background: #fff; color: var(--tc); border-radius: 999px; padding: 3px 9px; font: 700 12px/1 var(--f-num); }
+.tbtn.on { background: var(--tc); color: #fff; }
+.state.muted, .muted { color: var(--muted); }
+.bags { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 5px; }
+.bagbtn { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--f-num); }
+.bagbtn b { font-size: 13px; } .bagbtn small { color: var(--muted); font-size: 11px; }
+.bagbtn:disabled { opacity: 0.45; }
+.bagicon2 { position: relative; display: inline-block; width: 56px; height: 64px; margin: 0 auto; animation: shakebag 0.6s ease-in-out 2; }
+.bagicon2.small { width: 26px; height: 30px; animation: none; }
+.bagicon2 i { position: absolute; left: 12%; right: 12%; bottom: 0; top: 22%; background: var(--cc); border-radius: 6px 6px 10px 10px; border: 2px solid rgba(0,0,0,0.45); }
+.bagicon2 b { position: absolute; left: 30%; right: 30%; top: 0; height: 32%; border: 3px solid rgba(0,0,0,0.45); border-bottom: 0; border-radius: 10px 10px 0 0; }
+.icards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; margin: 8px 0; }
+.icard { border: 2px solid var(--rc); border-radius: 6px; padding: 8px; background: #fff; animation: pop 0.35s ease-out both; box-shadow: 0 0 0 3px color-mix(in srgb, var(--rc) 20%, transparent); }
+.icard .rn { font: 700 11px/1 var(--f-num); letter-spacing: 0.12em; text-transform: uppercase; color: var(--rc); }
+.icard .it { font: 800 20px/1.15 var(--f-num); margin: 3px 0; }
+.icard .st { font-size: 12px; color: var(--muted); }
+.icard .nw { font: 700 12px/1.2 var(--f-num); margin-top: 4px; }
+.rtable { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
+.rtable div { border: 1px solid var(--line); border-top: 4px solid var(--rc); border-radius: 3px; padding: 3px 4px; font: 600 11px/1.25 var(--f-num); background: #fff; display: flex; flex-direction: column; }
+.rtable div b { font-size: 12px; } .rtable div.locked { opacity: 0.5; }
+.eq { border-left: 5px solid var(--rc, #ccc); }
+.eq .in { color: var(--rc, var(--ink)); }
+.album10 { display: grid; grid-template-columns: 58px repeat(10, minmax(0, 1fr)); gap: 2px; font-size: 10px; overflow-x: auto; }
+.album10 .lbl { font: 700 10px/1.1 var(--f-num); text-transform: uppercase; color: var(--muted); display: flex; align-items: center; }
+.album10 button { position: relative; border: 1px solid var(--line); border-top: 3px solid var(--rc); background: #fff; border-radius: 3px; padding: 2px 1px; min-height: 40px; font: 600 10px/1.05 var(--f-num); color: var(--ink); display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 0; overflow: hidden; }
+.album10 button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.album10 button small { color: var(--muted); font-size: 9px; }
+.album10 button.miss { background: #eef1ec; color: #a0aaa3; }
+.album10 button.on { background: #fff8e3; box-shadow: inset 0 0 0 1px var(--gold); }
+.album10 button em { position: absolute; top: 0; right: 0; background: var(--red); color: #fff; font: 700 8px/1 var(--f-num); font-style: normal; padding: 1px 3px; }
+.pill.small { padding: 4px 8px; font-size: 12px; }
+.worlds { display: flex; flex-direction: column; gap: 4px; }
+.world { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; border-radius: 6px; overflow: hidden; padding: 8px 10px; color: #fff; min-height: 58px; }
+.world .wbg { position: absolute; inset: 0; background: linear-gradient(180deg, var(--w1) 0 55%, var(--w2) 55% 100%); }
+.world .wbg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8,20,16,0.85), rgba(8,20,16,0.35)); }
+.world .wtx, .world em { position: relative; }
+.world b { font: 800 16px/1.1 var(--f-num); display: block; } .world small { display: block; font-size: 12px; opacity: 0.9; } .world span { font: 600 12px/1.2 var(--f-num); opacity: 0.85; }
+.world em { font: 800 13px/1 var(--f-num); font-style: normal; letter-spacing: 0.08em; }
+.world.locked { filter: grayscale(0.6); opacity: 0.75; }
+.world.cur { box-shadow: inset 0 0 0 3px var(--gold); }
+.scorecard th.gate { background: #c8281e; }
+.daily { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin-bottom: 6px; }
+.daily div { border: 1px solid var(--line); border-radius: 4px; background: #fff; padding: 4px; text-align: center; font: 600 10px/1.2 var(--f-num); }
+.daily div b { display: block; font-size: 12px; }
+.daily div.got { opacity: 0.5; } .daily div.next { box-shadow: inset 0 0 0 2px var(--gold); background: #fff8e3; }
+.achs { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px; }
+.ach { display: flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 4px; padding: 5px 7px; background: #fff; }
+.ach b { font-size: 16px; width: 20px; text-align: center; } .ach span { font: 700 13px/1.15 var(--f-num); display: block; } .ach small { color: var(--muted); font-size: 11px; }
+.ach.done { background: #fff8e3; border-color: var(--gold); }
+@media (max-width: 640px) { .rtable { grid-template-columns: repeat(2, minmax(0, 1fr)); } .daily { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 </style>
 
 <header class="board">
-  <div class="brand"><b>Par Fabrikası</b><span id="courseName">Kurs 1 · Yerel Kulüp</span></div>
+  <div class="brand"><b>Par Factory</b><span id="worldName">World 1</span></div>
   <div class="slots">
-    <div class="slot"><label>Yarda</label><output id="sYards" class="num">0</output></div>
-    <div class="slot"><label>Gelir / sn</label><output id="sIncome" class="num">0</output></div>
-    <div class="slot red"><label>Yıldız</label><output id="sStars" class="num">0</output></div>
-    <div class="slot"><label>Bilgi</label><output id="sBilgi" class="num">0</output></div>
-    <div class="slot"><label>Parça</label><output id="sParts" class="num">0</output></div>
-    <button class="slot gold" id="sChestBtn" type="button"><label>Sandık</label><output id="sChests" class="num">0</output></button>
+    <div class="slot"><label data-en="Yards" data-tr="Yarda">Yards</label><output id="sYards" class="num">0</output></div>
+    <div class="slot"><label data-en="Per sec" data-tr="Saniyede">Per sec</label><output id="sIncome" class="num">0</output></div>
+    <div class="slot red"><label data-en="Stars" data-tr="Yıldız">Stars</label><output id="sStars" class="num">0</output></div>
+    <div class="slot small"><label data-en="Data" data-tr="Veri">Data</label><output id="sData" class="num">0</output></div>
+    <div class="slot small"><label data-en="Shards" data-tr="Parça">Shards</label><output id="sShards" class="num">0</output></div>
+    <div class="slot small"><label data-en="Medals" data-tr="Madalya">Medals</label><output id="sMedals" class="num">0</output></div>
+    <button class="slot gold small" id="sBagBtn" type="button"><label data-en="Gear bags" data-tr="Çantalar">Gear bags</label><output id="sBags" class="num">0</output></button>
   </div>
   <div class="timebox">
-    <div class="clock">Oyun saati <b id="clock">Gün 1 · 0:00:00</b></div>
+    <div class="clock"><span data-en="Game time" data-tr="Oyun saati">Game time</span> <b id="clock">Day 1</b> <button type="button" class="dailychip" id="dailyChip" hidden data-en="Daily reward!" data-tr="Günlük ödül!">Daily reward!</button></div>
     <div class="speed" id="speed">
-      <button type="button" data-speed="0">Dur</button>
+      <button type="button" data-speed="0" data-en="Pause" data-tr="Dur">Pause</button>
       <button type="button" data-speed="1" class="on">×1</button>
       <button type="button" data-speed="10">×10</button>
       <button type="button" data-speed="100">×100</button>
-      <button type="button" class="skip" id="skipBtn">Zamanı atla</button>
-      <button type="button" class="tourbtn" id="tourBtn">Turnuva</button>
-      <button type="button" class="helpbtn" id="helpBtn" aria-label="Nasıl oynanır">?</button>
+      <button type="button" class="skip" id="skipBtn" data-en="Skip time" data-tr="Zamanı atla">Skip time</button>
+      <button type="button" class="helpbtn" id="helpBtn" aria-label="Help">?</button>
+    </div>
+    <div class="speed">
+      <span class="seg" id="viewBtn" title="View"><button type="button" data-view="side">A</button><button type="button" data-view="range">B</button><button type="button" data-view="split">A|B</button></span>
+      <span class="seg" id="langBtn"><button type="button" data-lang="en">EN</button><button type="button" data-lang="tr">TR</button></span>
     </div>
   </div>
 </header>
 
 <main class="layout">
   <section class="play">
-    <div class="holehead"><div class="h1" id="holeTitle">Delik 1</div><div class="meta" id="holeMeta"></div></div>
-    <div class="coursestrip" id="courseStrip" aria-label="Kurs skor şeridi"></div>
-    <canvas id="holemap" aria-label="Deliğin üstten görünümü"></canvas>
+    <div class="holehead"><div class="h1" id="holeTitle">Hole 1</div><div class="meta" id="holeMeta"></div></div>
+    <div class="coursestrip" id="courseStrip"></div>
+    <canvas id="holemap" aria-label="Hole map"></canvas>
     <div class="stage" id="stage">
-      <canvas id="scene" aria-label="Saha: vuruşlar ve toplar"></canvas>
-      <div class="stagehint" id="stageHint"></div>
+      <canvas id="sceneA" aria-label="View A: side view"></canvas>
+      <canvas id="sceneB" aria-label="View B: driving range" hidden></canvas>
+      <div id="banner"></div>
       <div class="abil" id="abil"></div>
-      <button type="button" id="puttBtn" hidden>Putt oyna<small>yön + güç · yıldız kazan</small></button>
-      <canvas id="ring" aria-label="Vuruş halkası"></canvas>
+      <button type="button" id="puttBtn" hidden><span data-en="Play putt" data-tr="Putt oyna">Play putt</span><small data-en="aim + power · earn stars" data-tr="yön + güç · yıldız kazan">aim + power · earn stars</small></button>
+      <canvas id="ring" aria-label="Swing ring"></canvas>
     </div>
     <div class="progress">
-      <div class="bar"><div class="g90" title="Son %10: yeşil"></div><div class="fill" id="pfill"></div><div class="marks" id="pmarks"></div></div>
+      <div class="bar"><div class="g90"></div><div class="fill" id="pfill"></div><div class="marks" id="pmarks"></div></div>
       <div class="row"><div id="pText" class="num"></div><span id="pEta"></span></div>
     </div>
-    <div class="goals" id="goals"></div>
+    <div class="reqline" id="reqLine"></div>
     <div class="chips">
-      <div class="chip"><h4>Topun yeri · sonraki düşüş olasılığı</h4><div class="v" id="lieV"></div><div class="lieodds" id="lieOdds"></div></div>
-      <div class="chip"><h4>Rüzgâr</h4><div class="v" id="windV"></div><div class="wstrip" id="windStrip"></div></div>
-      <div class="chip"><h4>Gelirin kaynağı · son 30 sn</h4><div class="share" id="share"></div><div class="legend" id="shareLegend"></div></div>
+      <div class="chip"><h4 data-en="Ball lie · next landing odds" data-tr="Topun yeri · sonraki düşüş olasılığı">Ball lie · next landing odds</h4><div class="v" id="lieV"></div><div class="lieodds" id="lieOdds"></div></div>
+      <div class="chip"><h4 data-en="Income source · last 30 s" data-tr="Gelir kaynağı · son 30 sn">Income source · last 30 s</h4><div class="share" id="share"></div><div class="legend" id="shareLegend"></div></div>
     </div>
   </section>
   <aside class="panel">
     <nav class="tabs" id="tabs">
-      <button type="button" data-tab="up" class="on">Yükseltme</button>
-      <button type="button" data-tab="res">Araştırma</button>
-      <button type="button" data-tab="gear">Ekipman</button>
-      <button type="button" data-tab="look">Görünüm</button>
-      <button type="button" data-tab="tour">Turnuva</button>
-      <button type="button" data-tab="career">Kariyer</button>
-      <button type="button" data-tab="tune">Denge</button>
+      <button type="button" data-tab="up" class="on" data-en="Upgrades" data-tr="Yükseltme">Upgrades</button>
+      <button type="button" data-tab="team" data-en="Team" data-tr="Takım">Team</button>
+      <button type="button" data-tab="res" data-en="Research" data-tr="Araştırma">Research</button>
+      <button type="button" data-tab="gear" data-en="Gear" data-tr="Ekipman">Gear</button>
+      <button type="button" data-tab="look" data-en="Look" data-tr="Görünüm">Look</button>
+      <button type="button" data-tab="worlds" data-en="Worlds" data-tr="Dünyalar">Worlds</button>
+      <button type="button" data-tab="compete" data-en="Compete" data-tr="Yarış">Compete</button>
+      <button type="button" data-tab="awards" data-en="Awards" data-tr="Başarım">Awards</button>
+      <button type="button" data-tab="dev" data-en="Dev" data-tr="Test">Dev</button>
     </nav>
     <div class="tabbody" id="tabBody"></div>
   </aside>
@@ -463,21 +554,21 @@ ul.plain li { margin: 3px 0; } ul.plain b { color: var(--ink); }
     <canvas id="puttCanvas"></canvas>
     <div class="puttstep" id="puttStep"></div>
     <div class="puttinfo" id="puttInfo"></div>
-    <div class="puttfoot"><span>Eğim okları topun kırılacağı yönü gösterir. <kbd>Boşluk</kbd> ya da tıkla.</span><button type="button" class="btn" id="puttSkip">Geç</button></div>
+    <div class="puttfoot"><span data-en="Slope arrows show where the ball breaks. Space or click." data-tr="Eğim okları topun kırılacağı yönü gösterir. Boşluk ya da tıkla.">Slope arrows show where the ball breaks. Space or click.</span><button type="button" class="btn" id="puttSkip">Skip</button></div>
   </div>
 </div>
 
 <div class="overlay" id="tourOverlay" hidden>
   <div class="tourbox">
     <div class="tcanvas-wrap">
-      <canvas id="tourCanvas" aria-label="Gerçek ölçekli delik"></canvas>
-      <canvas id="tourRing" aria-label="Vuruş halkası"></canvas>
+      <canvas id="tourCanvas" aria-label="Real-scale hole"></canvas>
+      <canvas id="tourRing" aria-label="Swing ring"></canvas>
       <div id="tourMsg"></div>
     </div>
     <div class="tside">
       <div id="tourSide"></div>
-      <div class="ringwrap"><p>1. Sahada hedefi sürükle.<br>2. İbre sarı bölgedeyken <kbd>Boşluk</kbd> ya da halkaya tıkla.<br>Sarı elips: iyi vuruşta topun %95 düşeceği alan.</p></div>
-      <button type="button" class="btn tclose" id="tourClose">Turdan çık</button>
+      <div class="ringwrap"><p data-en="1. Drag the target on the hole. 2. Press Space (or click the ring) in the yellow zone. The yellow ellipse is where a good shot lands 95% of the time." data-tr="1. Sahada hedefi sürükle. 2. İbre sarı bölgedeyken Boşluk'a bas ya da halkaya tıkla. Sarı elips: iyi vuruşta topun %95 düşeceği alan.">1. Drag the target on the hole.</p></div>
+      <button type="button" class="btn tclose" id="tourClose" data-en="Leave round" data-tr="Turdan çık">Leave round</button>
     </div>
   </div>
 </div>
@@ -485,7 +576,9 @@ ul.plain li { margin: 3px 0; } ul.plain b { color: var(--ink); }
 <div id="toasts"></div>
 
 <script src="js/util.js"></script>
+<script src="js/data.js"></script>
 <script src="js/econ.js"></script>
+<script src="js/art.js"></script>
 <script src="js/scene.js"></script>
 <script src="js/putt.js"></script>
 <script src="js/tour.js"></script>

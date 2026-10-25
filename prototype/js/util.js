@@ -36,11 +36,13 @@ const U = (() => {
   function fmtTime(sec) {
     sec = Math.max(0, sec);
     if (!isFinite(sec)) return '∞';
-    if (sec < 60) return Math.ceil(sec) + ' sn';
-    if (sec < 3600) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return m + ' dk' + (s ? ' ' + s + ' sn' : ''); }
-    if (sec < 86400) { const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60); return h + ' sa' + (m ? ' ' + m + ' dk' : ''); }
-    if (sec < 86400 * 365) { const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600); return d + ' gün' + (h ? ' ' + h + ' sa' : ''); }
-    return 'çok uzun';
+    const tr = typeof LANG !== 'undefined' && LANG.cur === 'tr';
+    const u = tr ? { s: ' sn', m: ' dk', h: ' sa', d: ' gün', long: 'çok uzun' } : { s: 's', m: 'm', h: 'h', d: 'd', long: 'very long' };
+    if (sec < 60) return Math.ceil(sec) + u.s;
+    if (sec < 3600) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return m + u.m + (s ? ' ' + s + u.s : ''); }
+    if (sec < 86400) { const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60); return h + u.h + (m ? ' ' + m + u.m : ''); }
+    if (sec < 86400 * 365) { const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600); return d + u.d + (h ? ' ' + h + u.h : ''); }
+    return u.long;
   }
   function fmtClock(sec) {
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);

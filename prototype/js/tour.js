@@ -1,18 +1,18 @@
 // Gerçek ölçekli golf: günlük delik, haftalık turnuva ve antrenman.
 // Sopa → nişan → halka. Her vuruştan sonra rastgeleliğin (sapma, rüzgâr, zemin) dökümü gösterilir.
 const CLUBS = [
-  { id: 'D', name: 'Driver', carry: 250, dev: 0.075, roll: 0.12, apex: 0.10, note: 'En uzun, en az isabetli. Yalnızca tee\'den.' },
-  { id: '3W', name: '3 Wood', carry: 225, dev: 0.065, roll: 0.10, apex: 0.11, note: 'Uzun ve yuvarlanır. Bunkerden olmaz.' },
-  { id: '5i', name: '5 Demir', carry: 185, dev: 0.052, roll: 0.07, apex: 0.13, note: 'Uzun yaklaşma.' },
-  { id: '7i', name: '7 Demir', carry: 160, dev: 0.046, roll: 0.05, apex: 0.15, note: 'Orta yaklaşma.' },
-  { id: '9i', name: '9 Demir', carry: 135, dev: 0.04, roll: 0.035, apex: 0.18, note: 'Yüksek ve isabetli.' },
-  { id: 'PW', name: 'Pitching W.', carry: 110, dev: 0.036, roll: 0.025, apex: 0.2, note: 'Yeşile kısa vuruş, az yuvarlanır.' },
-  { id: 'SW', name: 'Sand W.', carry: 85, dev: 0.034, roll: 0.015, apex: 0.22, note: 'Bunkerden çıkış, neredeyse hiç yuvarlanmaz.' },
+  { id: 'D', name: 'Driver', carry: 250, dev: 0.075, roll: 0.12, apex: 0.10, note: { en: 'Longest, least accurate. Tee only.', tr: 'En uzun, en az isabetli. Yalnızca tee\'den.' } },
+  { id: '3W', name: '3 Wood', carry: 225, dev: 0.065, roll: 0.10, apex: 0.11, note: { en: 'Long and rolls out. Not from bunkers.', tr: 'Uzun ve yuvarlanır. Bunkerden olmaz.' } },
+  { id: '5i', name: '5 Iron', carry: 185, dev: 0.052, roll: 0.07, apex: 0.13, note: { en: 'Long approach.', tr: 'Uzun yaklaşma.' } },
+  { id: '7i', name: '7 Iron', carry: 160, dev: 0.046, roll: 0.05, apex: 0.15, note: { en: 'Mid approach.', tr: 'Orta yaklaşma.' } },
+  { id: '9i', name: '9 Iron', carry: 135, dev: 0.04, roll: 0.035, apex: 0.18, note: { en: 'High and accurate.', tr: 'Yüksek ve isabetli.' } },
+  { id: 'PW', name: 'Pitching W.', carry: 110, dev: 0.036, roll: 0.025, apex: 0.2, note: { en: 'Short shot to the green, little roll.', tr: 'Yeşile kısa vuruş, az yuvarlanır.' } },
+  { id: 'SW', name: 'Sand W.', carry: 85, dev: 0.034, roll: 0.015, apex: 0.22, note: { en: 'Bunker escapes, almost no roll.', tr: 'Bunkerden çıkış, neredeyse hiç yuvarlanmaz.' } },
 ];
 const LIE = {
-  tee: { name: 'Tee', m: 1, dev: 1 }, fairway: { name: 'Fairway', m: 1, dev: 1 }, fringe: { name: 'Yeşil kenarı', m: 0.95, dev: 1.1 },
-  rough: { name: 'Rough', m: 0.85, dev: 1.35 }, trees: { name: 'Ağaç altı', m: 0.7, dev: 1.8 }, bunker: { name: 'Bunker', m: 0.6, dev: 1.6 },
-  green: { name: 'Yeşil', m: 1, dev: 1 },
+  tee: { name: { en: 'Tee', tr: 'Tee' }, m: 1, dev: 1 }, fairway: { name: { en: 'Fairway', tr: 'Fairway' }, m: 1, dev: 1 }, fringe: { name: { en: 'Fringe', tr: 'Yeşil kenarı' }, m: 0.95, dev: 1.1 },
+  rough: { name: { en: 'Rough', tr: 'Rough' }, m: 0.85, dev: 1.35 }, trees: { name: { en: 'Under trees', tr: 'Ağaç altı' }, m: 0.7, dev: 1.8 }, bunker: { name: { en: 'Bunker', tr: 'Bunker' }, m: 0.6, dev: 1.6 },
+  green: { name: { en: 'Green', tr: 'Yeşil' }, m: 1, dev: 1 },
 };
 
 const Tour = (() => {
@@ -132,16 +132,16 @@ const Tour = (() => {
       if (meta.daily.tries >= 3) return false;
       meta.daily.tries++;
       seedBase = dailySeed(meta.daily.day); holes = [dailyHole(meta.daily.day)];
-      title = 'Günlük Delik · Deneme ' + meta.daily.tries + '/3';
+      title = L('Daily Hole · Try ', 'Günlük Delik · Deneme ') + meta.daily.tries + '/3';
     } else if (mode === 'tour') {
       if (meta.tour.tries >= 3) return false;
       meta.tour.tries++;
       seedBase = weekSeed(meta.tour.week); holes = weekHoles(meta.tour.week);
-      title = 'Haftalık Turnuva · Tur ' + meta.tour.tries + '/3';
+      title = L('Weekly Tournament · Round ', 'Haftalık Turnuva · Tur ') + meta.tour.tries + '/3';
     } else {
       seedBase = (Math.random() * 1e9) | 0;
       holes = [genHole(seedBase, [3, 4, 4, 5][seedBase % 4], false)];
-      title = 'Antrenman sahası (normal zorluk)';
+      title = L('Practice range (normal difficulty)', 'Antrenman sahası (normal zorluk)');
     }
     const G = E.tourG();
     T = { mode, title, holes, idx: 0, scores: [], G, eff: E.tourEffects(G), gear: E.tourGear(), lg: E.league(G), rng: U.mulberry32((seedBase ^ (Date.now() & 0xffff)) >>> 0), anim: null, flash: null, report: null };
@@ -163,7 +163,7 @@ const Tour = (() => {
     T.last = { x: 0, y: 0, lie: 'tee' };
     renderBg();
     defaultTarget();
-    say(`Delik ${T.idx + 1} · Par ${H.par} · ${H.len} yd. Hedefi sürükle, halkaya tıkla.`);
+    say(L(`Hole ${T.idx + 1} · Par ${H.par} · ${H.len} yd. Drag the target, then hit the ring.`, `Delik ${T.idx + 1} · Par ${H.par} · ${H.len} yd. Hedefi sürükle, halkaya tıkla.`));
     renderSide();
   }
   function say(t) { msgEl.textContent = t; }
@@ -265,16 +265,16 @@ const Tour = (() => {
     T.phase = 'fly';
     T.anim = { from: { ...b }, land, fin, apex: carry * club.apex, t: 0, T: 0.8 + carry / 170, rollT: roll > 0.5 ? 0.6 : 0, s2, holed, q, lat };
     T.trail = [];
-    T.flash = { text: ['ISKA', 'İYİ', 'MÜKEMMEL'][q], t: 1 };
+    T.flash = { text: [L('MISS', 'ISKA'), L('GOOD', 'İYİ'), L('PERFECT', 'MÜKEMMEL')][q], t: 1 };
     renderSide();
-    say(`${club.name}: ${Math.round(carry)} yd uçtu.`);
+    say(L(`${club.name}: ${Math.round(carry)} yd carry.`, `${club.name}: ${Math.round(carry)} yd uçtu.`));
   }
   function afterShot() {
     const a = T.anim, H = T.H, sess = T, live = () => T === sess;
     T.anim = null;
     if (a.holed) {
       const rel = T.strokes - H.par;
-      say(T.strokes === 1 ? 'HOLE-IN-ONE!' : 'Deliğe girdi! ' + scoreName(rel));
+      say(T.strokes === 1 ? 'HOLE-IN-ONE!' : L('Holed out! ', 'Deliğe girdi! ') + scoreName(rel));
       T.flash = { text: T.strokes === 1 ? 'HOLE-IN-ONE!' : scoreName(rel).toUpperCase(), t: 2 };
       T.phase = 'done';
       setTimeout(() => live() && finishHole(T.strokes), 1400);
@@ -283,11 +283,11 @@ const Tour = (() => {
     if (a.s2 === 'water' || a.s2 === 'ob') {
       T.strokes++;
       T.ball = { x: T.last.x, y: T.last.y }; T.lie = T.last.lie || 'rough';
-      say((a.s2 === 'water' ? 'Su engeli' : 'Saha dışı') + '! +1 ceza vuruşu, son güvenli noktadan devam.');
-      T.flash = { text: a.s2 === 'water' ? 'SU! +1' : 'OB! +1', t: 1.4 };
+      say((a.s2 === 'water' ? L('Water', 'Su engeli') : L('Out of bounds', 'Saha dışı')) + L('! +1 penalty stroke, replay from the last safe spot.', '! +1 ceza vuruşu, son güvenli noktadan devam.'));
+      T.flash = { text: a.s2 === 'water' ? L('WATER! +1', 'SU! +1') : 'OB! +1', t: 1.4 };
       T.report.penalty = true;
     } else { T.ball = { x: a.fin.x, y: a.fin.y }; T.lie = a.s2; }
-    if (T.strokes >= H.par + 4) { say('Delik sınırı (par + 4): top kaldırıldı.'); T.phase = 'done'; setTimeout(() => live() && finishHole(H.par + 4), 1000); renderSide(); return; }
+    if (T.strokes >= H.par + 4) { say(L('Hole limit (par + 4): ball picked up.', 'Delik sınırı (par + 4): top kaldırıldı.')); T.phase = 'done'; setTimeout(() => live() && finishHole(H.par + 4), 1000); renderSide(); return; }
     if (T.lie === 'green') {
       T.phase = 'putt';
       const ft = Math.hypot(H.pin.x - T.ball.x, H.pin.y - T.ball.y) * 3;
@@ -295,10 +295,10 @@ const Tour = (() => {
       setTimeout(() => {
         if (!live()) return;
         Putt.open({
-          distFt: Math.max(2, ft), slope: H.slope, fast: H.hard, title: `Delik ${T.idx + 1} · Yeşilde`,
-          sub: `Vuruş ${T.strokes} · Par ${H.par}${H.hard ? ' · hızlı yeşil' : ''}`, maxTries: H.par + 4 - T.strokes, noSkip: true,
-          tapMsg: 'Top kaldırıldı', pickOnMax: true, calm: E.res('calm'),
-          window: 6 + E.res('calm') + E.eqStat('putt'), guide: 0.4 + 0.1 * E.res('read'),
+          distFt: Math.max(2, ft), slope: H.slope, fast: H.hard, title: L(`Hole ${T.idx + 1} · On the green`, `Delik ${T.idx + 1} · Yeşilde`),
+          sub: L(`Stroke ${T.strokes} · Par ${H.par}`, `Vuruş ${T.strokes} · Par ${H.par}`) + (H.hard ? L(' · fast green', ' · hızlı yeşil') : ''), maxTries: H.par + 4 - T.strokes, noSkip: true,
+          tapMsg: L('Ball picked up', 'Top kaldırıldı'), pickOnMax: true, calm: E.res('putt_calm'),
+          window: 6 + E.res('putt_calm'), guide: 0.4 + 0.1 * E.res('putt_read'),
           onDone: (tries, info) => { if (!live()) return; T.strokes += tries; finishHole(info && info.picked ? H.par + 4 : T.strokes); },
         });
       }, 700);
@@ -309,7 +309,7 @@ const Tour = (() => {
     renderSide();
   }
   function scoreName(rel) {
-    return { '-3': 'Albatros', '-2': 'Eagle', '-1': 'Birdie', '0': 'Par', '1': 'Bogey', '2': 'Double bogey', '3': 'Triple bogey' }[rel] || (rel < -3 ? 'İnanılmaz' : '+' + rel);
+    return { '-3': 'Albatros', '-2': 'Eagle', '-1': 'Birdie', '0': 'Par', '1': 'Bogey', '2': 'Double bogey', '3': 'Triple bogey' }[rel] || (rel < -3 ? L('Unreal', 'İnanılmaz') : '+' + rel);
   }
   function finishHole(score) {
     if (!T) return;
@@ -331,7 +331,7 @@ const Tour = (() => {
     const S = E.get(), meta = S.meta;
     const par = T.holes.reduce((a, h) => a + h.par, 0), tot = T.scores.reduce((a, b) => a + b, 0), rel = tot - par;
     const fmtRel = x => x === 0 ? 'E' : x > 0 ? '+' + x : '' + x;
-    let html = `<h3>${T.title}</h3><p class="big-score ${rel < 0 ? 'under' : ''}">${fmtRel(rel)}</p><p>${tot} vuruş · par ${par}</p>`;
+    let html = `<h3>${T.title}</h3><p class="big-score ${rel < 0 ? 'under' : ''}">${fmtRel(rel)}</p><p>${tot} ${L('strokes', 'vuruş')} · par ${par}</p>`;
     if (T.mode === 'daily') {
       meta.stats.dailyPlayed++;
       if (rel <= 0) meta.stats.dailyPar++;
@@ -340,27 +340,27 @@ const Tour = (() => {
       const field = Array.from({ length: 2000 }, () => Math.round(1.5 + U.normal(r) * 1.3));
       const better = field.filter(x => x < rel).length, ties = field.filter(x => x === rel).length;
       const pct = Math.max(1, Math.round((better + ties / 2) / field.length * 100));
-      const tier = pct <= 10 ? 3 : pct <= 25 ? 2 : pct <= 50 ? 1 : 0;
-      E.addChest({ tier, n: S.run.n }); meta.bilgi += 10;
-      html += `<p>Bugün 2 000 oyuncu aynı deliği oynadı. Sen <b>ilk %${pct}</b> içindesin.</p>${histogram(field, rel)}
-        <p>Ödül: <b>${RARITY[tier].name} sandık</b> + 10 Bilgi <span class="note">(ilk %10 Epik, %25 Nadir, %50 İyi, gerisi Sıradan)</span></p>`;
+      const tier = pct <= 5 ? 4 : pct <= 10 ? 3 : pct <= 25 ? 2 : pct <= 50 ? 1 : 0;
+      E.addBag(tier); meta.data += 10; meta.medals += 5;
+      html += `<p>${L(`2,000 players played this hole today. You are in the <b>top ${pct}%</b>.`, `Bugün 2 000 oyuncu aynı deliği oynadı. Sen <b>ilk %${pct}</b> içindesin.`)}</p>${histogram(field, rel)}
+        <p>${L('Reward', 'Ödül')}: <b>${N(BAGS[tier])}</b> + 10 ${N(CUR.data)} + 5 ${N(CUR.medals)} <span class="note">${L('(top 5% Diamond, 10% Platinum, 25% Gold, 50% Silver, rest Bronze)', '(ilk %5 Elmas, %10 Platin, %25 Altın, %50 Gümüş, gerisi Bronz)')}</span></p>`;
     } else if (T.mode === 'tour') {
       meta.stats.tourPlayed++;
       if (meta.tour.best == null || rel < meta.tour.best) meta.tour.best = rel;
       const r = U.rngOf('riv', meta.tour.week, T.lg.i);
       const mu = 7 - 1.4 * T.lg.i;
-      const rivals = RIVALS.concat(Array.from({ length: 37 }, (_, i) => 'Oyuncu ' + (i + 13))).map(n => ({ n, s: Math.round(mu + U.normal(r) * 3) }));
-      const all = rivals.concat([{ n: 'Sen', s: meta.tour.best, me: true }]).sort((a, b) => a.s - b.s || (a.me ? -1 : b.me ? 1 : 0));
+      const rivals = RIVALS.concat(Array.from({ length: 37 }, (_, i) => L('Player ', 'Oyuncu ') + (i + 13))).map(n => ({ n, s: Math.round(mu + U.normal(r) * 3) }));
+      const all = rivals.concat([{ n: L('You', 'Sen'), s: meta.tour.best, me: true }]).sort((a, b) => a.s - b.s || (a.me ? -1 : b.me ? 1 : 0));
       const rank = all.findIndex(x => x.me) + 1, pct = Math.round(rank / 50 * 100);
       meta.stats.tourBest = Math.min(meta.stats.tourBest, pct);
       const show = all.filter((x, i) => i < 3 || Math.abs(i + 1 - rank) <= 2);
-      html += `<p>${T.lg.name} ligi · 50 kişilik grup · bu haftaki en iyi turun (${fmtRel(meta.tour.best)}) ile <b>${rank}. sıra</b> (ilk %${pct}).</p>
+      html += `<p>${L(`${T.lg.name} league · group of 50 · your best round this week (${fmtRel(meta.tour.best)}) ranks <b>#${rank}</b> (top ${pct}%).`, `${T.lg.name} ligi · 50 kişilik grup · bu haftaki en iyi turun (${fmtRel(meta.tour.best)}) ile <b>${rank}. sıra</b> (ilk %${pct}).`)}</p>
         <table class="sumtable">${show.map(x => `<tr class="${x.me ? 'me' : ''}"><td>${all.indexOf(x) + 1}. ${x.n}</td><td>${fmtRel(x.s)}</td></tr>`).join('')}</table>`;
-      meta.bilgi += 15; meta.parts += 20;
-      html += `<p>+15 Bilgi, +20 parça.</p>`;
-      if (pct <= 10 && !meta.tour.rewarded) { meta.tour.rewarded = true; meta.badge = Math.min(10, meta.badge + 1); meta.bilgi += 20; meta.parts += 40; html += `<p class="gold">İlk %10: Turnuva Rozeti (kariyer mesafesi +%1), +20 Bilgi, +40 parça.</p>`; }
-    } else html += `<p>Antrenman: ödül yok, deneme hakkı harcanmadı.</p>`;
-    html += `<div class="btnrow"><button class="btn primary" id="tourDoneBtn">Kariyere dön</button></div>`;
+      meta.data += 15; meta.medals += 20;
+      html += `<p>+15 ${N(CUR.data)}, +20 ${N(CUR.medals)}.</p>`;
+      if (pct <= 10 && !meta.tour.rewarded) { meta.tour.rewarded = true; meta.badge = Math.min(10, meta.badge + 1); meta.medals += 40; E.addBag(2); html += `<p class="gold">${L('Top 10%: Tournament badge (+1% career distance), Gold Bag, +40 Medals.', 'İlk %10: Turnuva Rozeti (kariyer mesafesi +%1), Altın Çanta, +40 Madalya.')}</p>`; }
+    } else html += `<p>${L('Practice: no reward, no try used.', 'Antrenman: ödül yok, deneme hakkı harcanmadı.')}</p>`;
+    html += `<div class="btnrow"><button class="btn primary" id="tourDoneBtn">${L('Back to career', 'Kariyere dön')}</button></div>`;
     T.phase = 'over';
     UI.modal(html, { onMount: m => m.querySelector('#tourDoneBtn').addEventListener('click', () => { UI.closeModal(); close(); }) });
   }
@@ -500,7 +500,7 @@ const Tour = (() => {
     ctx.beginPath(); ctx.moveTo(L, 0); ctx.lineTo(L - 9, -6); ctx.lineTo(L - 9, 6); ctx.fill();
     ctx.restore();
     ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '700 12px "Barlow Condensed", sans-serif';
-    ctx.fillText(H.wind.kmh + ' km/s rüzgâr', wx, wy + 46);
+    ctx.fillText(H.wind.kmh + L(' km/h wind', ' km/s rüzgâr'), wx, wy + 46);
     if (T.flash) {
       ctx.globalAlpha = Math.min(1, T.flash.t * 2);
       ctx.font = '800 34px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center';
@@ -512,11 +512,11 @@ const Tour = (() => {
   function loop(now) {
     if (!T) return;
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    ring.perfectDeg = 12 + 3 * E.res('sweet');
+    ring.perfectDeg = 12;
     ring.update(dt);
     ring.enabled = T.phase === 'aim' && !Putt.isOpen();
     ring.center = T.club ? T.club.id : '';
-    ring.sub = T.phase === 'aim' ? 'BOŞLUK / TIKLA' : '';
+    ring.sub = T.phase === 'aim' ? L('SPACE / CLICK', 'BOŞLUK / TIKLA') : '';
     ring.draw();
     if (T.flash) { T.flash.t -= dt; if (T.flash.t <= 0) T.flash = null; }
     if (T.anim) { T.anim.t += dt; if (T.anim.t >= T.anim.T + T.anim.rollT + 0.15) afterShot(); }
@@ -537,36 +537,37 @@ const Tour = (() => {
     const maxC = Math.max(...CLUBS.map(reach));
     const clubs = CLUBS.map(c => {
       const ok = clubOk(c), on = T.club && T.club.id === c.id;
-      return `<button class="crow ${on ? 'on' : ''}" data-club="${c.id}" ${ok ? '' : 'disabled'} title="${c.note}">
+      return `<button class="crow ${on ? 'on' : ''}" data-club="${c.id}" ${ok ? '' : 'disabled'} title="${N(c.note)}">
         <b>${c.id}</b><span class="cbar"><i style="width:${(reach(c) / maxC * 100).toFixed(0)}%"></i></span><em>${Math.round(reach(c))} yd</em><em>±${Math.round(reach(c) * devOf(c))} yd</em></button>`;
     }).join('');
     const rp = T.report;
-    const repHtml = rp ? `<div class="report"><div class="eyebrow">Son vuruş: neden oraya düştü?</div>
+    const lr = v => v > 0 ? L('left', 'sola') : L('right', 'sağa');
+    const repHtml = rp ? `<div class="report"><div class="eyebrow">${L('Last shot: why did it land there?', 'Son vuruş: neden oraya düştü?')}</div>
       <div class="kv">
-        <span>Sopa ve kalite</span><b>${rp.club} · ${['ISKA ×0.75', 'İYİ ×0.95', 'MÜKEMMEL ×1.0'][rp.q]}</b>
-        <span>Planlanan → uçuş</span><b>${rp.plan} → ${rp.carry} yd</b>
-        <span>Rüzgâr (boyuna)</span><b>${rp.windLong >= 0 ? '+' : ''}${rp.windLong} yd</b>
-        <span>Rüzgâr (yana, esinti ${Math.round(rp.gust)} km/s)</span><b>${Math.abs(rp.windLat).toFixed(0)} yd ${rp.windLat > 0 ? 'sola' : 'sağa'}</b>
-        <span>Şans: sapma zarı ${rp.z >= 0 ? '+' : ''}${rp.z.toFixed(1)}σ (σ=${rp.sigma.toFixed(1)} yd)</span><b>${Math.abs(rp.devLat).toFixed(0)} yd ${rp.devLat > 0 ? 'sola' : 'sağa'}</b>
-        <span>Yuvarlanma</span><b>${rp.roll} yd</b>
-        <span>Zemin</span><b>${LIE[rp.from] ? LIE[rp.from].name : rp.from} → ${rp.penalty ? 'ceza' : LIE[rp.to] ? LIE[rp.to].name : rp.to}</b>
-      </div></div>` : `<p class="note">Vuruştan sonra burada sapmanın dökümü görünür: kalite, rüzgâr ve şans payı ayrı ayrı.</p>`;
+        <span>${L('Club and quality', 'Sopa ve kalite')}</span><b>${rp.club} · ${[L('MISS', 'ISKA') + ' ×0.75', L('GOOD', 'İYİ') + ' ×0.95', L('PERFECT', 'MÜKEMMEL') + ' ×1.0'][rp.q]}</b>
+        <span>${L('Planned → carry', 'Planlanan → uçuş')}</span><b>${rp.plan} → ${rp.carry} yd</b>
+        <span>${L('Wind (along)', 'Rüzgâr (boyuna)')}</span><b>${rp.windLong >= 0 ? '+' : ''}${rp.windLong} yd</b>
+        <span>${L(`Wind (across, gust ${Math.round(rp.gust)} km/h)`, `Rüzgâr (yana, esinti ${Math.round(rp.gust)} km/s)`)}</span><b>${Math.abs(rp.windLat).toFixed(0)} yd ${lr(rp.windLat)}</b>
+        <span>${L('Luck: spread roll', 'Şans: sapma zarı')} ${rp.z >= 0 ? '+' : ''}${rp.z.toFixed(1)}σ (σ=${rp.sigma.toFixed(1)} yd)</span><b>${Math.abs(rp.devLat).toFixed(0)} yd ${lr(rp.devLat)}</b>
+        <span>${L('Roll', 'Yuvarlanma')}</span><b>${rp.roll} yd</b>
+        <span>${L('Lie', 'Zemin')}</span><b>${LIE[rp.from] ? N(LIE[rp.from].name) : rp.from} → ${rp.penalty ? L('penalty', 'ceza') : LIE[rp.to] ? N(LIE[rp.to].name) : rp.to}</b>
+      </div></div>` : `<p class="note">${L('After each shot the spread breakdown shows here: quality, wind and luck, separately.', 'Vuruştan sonra burada sapmanın dökümü görünür: kalite, rüzgâr ve şans payı ayrı ayrı.')}</p>`;
     side.innerHTML = `
-      <div class="t-head"><div><div class="eyebrow">${T.title}</div><div class="t-hole">Delik ${T.idx + 1} <small>/ ${T.holes.length}${H.hard ? ' · zor' : ''}</small></div></div>
+      <div class="t-head"><div><div class="eyebrow">${T.title}</div><div class="t-hole">${L('Hole', 'Delik')} ${T.idx + 1} <small>/ ${T.holes.length}${H.hard ? L(' · hard', ' · zor') : ''}</small></div></div>
         <div class="t-par">PAR <b>${H.par}</b><span>${H.len} yd</span></div></div>
-      <p class="note">Par ${H.par}: iyi bir oyuncu bu deliği ${H.par} vuruşta bitirir (${H.par - 2} vuruşta yeşile + 2 putt). Altı birdie, üstü bogey.</p>
+      <p class="note">${L(`Par ${H.par}: a good player finishes this hole in ${H.par} strokes (${H.par - 2} to the green + 2 putts). One under is a birdie, one over a bogey.`, `Par ${H.par}: iyi bir oyuncu bu deliği ${H.par} vuruşta bitirir (${H.par - 2} vuruşta yeşile + 2 putt). Altı birdie, üstü bogey.`)}</p>
       <div class="t-stats">
-        <div><span>Bayrağa</span><b>${Math.round(dPin)} yd</b></div>
-        <div><span>Topun yeri</span><b>${li.name}</b><small>mesafe ×${li.m.toFixed(2)} · sapma ×${li.dev.toFixed(2)}</small></div>
-        <div><span>Vuruş</span><b>${T.strokes}</b></div>
-        <div><span>Rüzgâr</span><b>${H.wind.kmh} km/s</b><small>±%20 esinti</small></div>
+        <div><span>${L('To pin', 'Bayrağa')}</span><b>${Math.round(dPin)} yd</b></div>
+        <div><span>${L('Lie', 'Topun yeri')}</span><b>${N(li.name)}</b><small>${L('distance', 'mesafe')} ×${li.m.toFixed(2)} · ${L('spread', 'sapma')} ×${li.dev.toFixed(2)}</small></div>
+        <div><span>${L('Strokes', 'Vuruş')}</span><b>${T.strokes}</b></div>
+        <div><span>${L('Wind', 'Rüzgâr')}</span><b>${H.wind.kmh} km/h</b><small>${L('±20% gusts', '±%20 esinti')}</small></div>
       </div>
-      <div class="eyebrow">Sopalar: taşıma = topun havada gittiği mesafe · ± = 1σ yana sapma</div>
+      <div class="eyebrow">${L('Clubs: carry = how far the ball flies in the air · ± = 1σ sideways spread', 'Sopalar: taşıma = topun havada gittiği mesafe · ± = 1σ yana sapma')}</div>
       <div class="clubs2">${clubs}</div>
-      <p class="note">${T.club ? T.club.name + ': ' + T.club.note : ''} Hedefi sopanın menzilinden kısa sürüklersen yarım vuruş yaparsın.</p>
+      <p class="note">${T.club ? T.club.name + ': ' + N(T.club.note) : ''} ${L('Drag the target shorter than the club range for a partial swing.', 'Hedefi sopanın menzilinden kısa sürüklersen yarım vuruş yaparsın.')}</p>
       ${repHtml}
-      <div class="t-g">Turnuva gücü G ${Math.round(T.G)} (${T.lg.name}): taşıma +%${((T.eff.power - 1) * 100).toFixed(1)}, sapma −%${(T.eff.control * 100).toFixed(0)}. Ekipmanın: taşıma +%${(T.gear.carry * 100).toFixed(0)}, sapma −%${(T.gear.acc * 100).toFixed(0)}, zemin cezası −%${(T.gear.lie * 100).toFixed(0)}, yuvarlanma +%${(T.gear.roll * 100).toFixed(0)}.</div>
-      <div class="card-scroll"><table class="scorecard"><tr><th>Delik</th>${T.holes.map((h, i) => `<th>${i + 1}</th>`).join('')}<th>Top</th></tr><tr><td>Par</td>${T.holes.map(h => `<td>${h.par}</td>`).join('')}<td>${parTot}</td></tr><tr><td>Skor</td>${rows}<td>${T.scores.length ? T.scores.reduce((a, b) => a + b, 0) : ''}</td></tr></table></div>`;
+      <div class="t-g">${L('Tournament power', 'Turnuva gücü')} G ${Math.round(T.G)} (${T.lg.name}): ${L('carry', 'taşıma')} +${((T.eff.power - 1) * 100).toFixed(1)}%, ${L('spread', 'sapma')} −${(T.eff.control * 100).toFixed(0)}%. ${L('Your gear', 'Ekipmanın')}: ${L('carry', 'taşıma')} +${(T.gear.carry * 100).toFixed(0)}%, ${L('spread', 'sapma')} −${(T.gear.acc * 100).toFixed(0)}%, ${L('lie penalty', 'zemin cezası')} −${(T.gear.lie * 100).toFixed(0)}%, ${L('roll', 'yuvarlanma')} +${(T.gear.roll * 100).toFixed(0)}%.</div>
+      <div class="card-scroll"><table class="scorecard"><tr><th>${L('Hole', 'Delik')}</th>${T.holes.map((h, i) => `<th>${i + 1}</th>`).join('')}<th>${L('Tot', 'Top')}</th></tr><tr><td>Par</td>${T.holes.map(h => `<td>${h.par}</td>`).join('')}<td>${parTot}</td></tr><tr><td>${L('Score', 'Skor')}</td>${rows}<td>${T.scores.length ? T.scores.reduce((a, b) => a + b, 0) : ''}</td></tr></table></div>`;
     side.querySelectorAll('[data-club]').forEach(btn => btn.addEventListener('click', () => pickClub(btn.dataset.club)));
   }
 

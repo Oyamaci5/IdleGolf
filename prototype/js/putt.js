@@ -68,7 +68,7 @@ const Putt = (() => {
     st.scale = Math.min(18, 360 / (Math.max(opts.distFt, 6) * 1.25));
     titleEl.textContent = opts.title || 'Putt';
     subEl.textContent = opts.sub || '';
-    skipBtn.textContent = opts.skipLabel || 'Geç';
+    skipBtn.textContent = opts.skipLabel || L('Skip', 'Geç');
     skipBtn.hidden = !!opts.noSkip;
     newAttempt();
     ov.hidden = false;
@@ -118,16 +118,16 @@ const Putt = (() => {
       if (st.pi >= st.path.length - 1) {
         const end = st.path[st.path.length - 1], dist = Math.hypot(end[0], end[1]);
         st.ball = { x: end[0], y: end[1] };
-        const names = ['', 'İLK PUTTTA!', 'İKİ PUTT', 'ÜÇ PUTT'];
-        if (st.holed) { st.phase = 'done'; st.t = 0; st.msg = names[st.tries] || 'İÇERİDE'; }
-        else if (dist < 0.9) { st.tries++; st.holed = true; st.phase = 'done'; st.t = 0; st.msg = 'Tap-in'; st.ball = { x: 0, y: 0 }; }
-        else if (st.tries >= st.maxTries - 1) { st.tries = st.maxTries; st.phase = 'done'; st.t = 0; st.msg = st.opts.tapMsg || 'Kaddi soktu'; st.ball = { x: 0, y: 0 }; st.picked = !!st.opts.pickOnMax; }
+        const names = ['', L('ONE PUTT!', 'İLK PUTTTA!'), L('TWO PUTTS', 'İKİ PUTT'), L('THREE PUTTS', 'ÜÇ PUTT')];
+        if (st.holed) { st.phase = 'done'; st.t = 0; st.msg = names[st.tries] || L('IN!', 'İÇERİDE'); }
+        else if (dist < 0.9) { st.tries++; st.holed = true; st.phase = 'done'; st.t = 0; st.msg = L('Tap-in', 'Tap-in'); st.ball = { x: 0, y: 0 }; }
+        else if (st.tries >= st.maxTries - 1) { st.tries = st.maxTries; st.phase = 'done'; st.t = 0; st.msg = st.opts.tapMsg || L('Caddie holed it', 'Kaddi soktu'); st.ball = { x: 0, y: 0 }; st.picked = !!st.opts.pickOnMax; }
         else {
           st.phase = 'wait'; st.t = 0;
           // neden kaçtı? güç mü, yön mü?
           const short = st.power < 1 && !st.lip && end[1] > 0.3;
-          st.msg = st.lip ? 'Çok sert: delikten sektü' : short ? 'Kısa kaldı' : 'Kaçtı';
-          st.sub = dist.toFixed(1) + ' ft kaldı';
+          st.msg = st.lip ? L('Too hard: lipped out', 'Çok sert: delikten sektü') : short ? L('Left it short', 'Kısa kaldı') : L('Missed', 'Kaçtı');
+          st.sub = dist.toFixed(1) + L(' ft left', ' ft kaldı');
         }
       }
     } else if (st.phase === 'wait') { if (st.t > 1.1) { st.msg = null; st.sub = null; newAttempt(); } }
@@ -202,9 +202,9 @@ const Putt = (() => {
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bxp - 8, ty); ctx.lineTo(bxp + 22, ty); ctx.stroke();
     ctx.save(); ctx.translate(bxp - 12, ty); ctx.rotate(-Math.PI / 2);
     ctx.fillStyle = '#fff'; ctx.font = '700 11px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('DÜZ ZEMİN', 0, 0); ctx.restore();
+    ctx.fillText(L('FLAT', 'DÜZ ZEMİN'), 0, 0); ctx.restore();
     ctx.fillStyle = '#cfe6d8'; ctx.font = '700 11px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('GÜÇ', bxp + 9, top + hgt + 18);
+    ctx.fillText(L('POWER', 'GÜÇ'), bxp + 9, top + hgt + 18);
     // mesajlar
     if (st.msg) {
       ctx.font = '800 36px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center';
@@ -213,10 +213,10 @@ const Putt = (() => {
       if (st.sub) { ctx.font = '700 18px "Barlow Condensed", sans-serif'; ctx.lineWidth = 4; ctx.strokeText(st.sub, CW / 2 - 15, CH * 0.55 + 26); ctx.fillStyle = '#fff'; ctx.fillText(st.sub, CW / 2 - 15, CH * 0.55 + 26); }
     }
     const d = Math.hypot(st.ball.x, st.ball.y);
-    const side = Math.abs(st.slope.x) < 0.08 ? 'düz' : st.slope.x > 0 ? 'sağa kırar' : 'sola kırar';
-    const up = st.slope.y > 0.15 ? 'yokuş yukarı (sert vur)' : st.slope.y < -0.15 ? 'yokuş aşağı (yumuşak vur)' : 'eğimsiz';
-    infoEl.innerHTML = `<span>Deneme <b>${Math.min(st.tries + (st.phase === 'aim' || st.phase === 'power' ? 1 : 0), st.maxTries)}</b></span><span>Mesafe <b>${d.toFixed(1)} ft</b></span><span>Yan eğim <b>${side}</b></span><span>Boy eğim <b>${up}</b></span>`;
-    stepEl.innerHTML = st.phase === 'aim' ? '<b>1/2 Yön:</b> sarı çizgi deliğe doğru kırılan yolu gösterirken <kbd>Boşluk</kbd>' : st.phase === 'power' ? '<b>2/2 Güç:</b> çubuk doğru yükseklikteyken <kbd>Boşluk</kbd>. Beyaz çizgi düz zemin içindir.' : '&nbsp;';
+    const side = Math.abs(st.slope.x) < 0.08 ? L('straight', 'düz') : st.slope.x > 0 ? L('breaks right', 'sağa kırar') : L('breaks left', 'sola kırar');
+    const up = st.slope.y > 0.15 ? L('uphill (hit harder)', 'yokuş yukarı (sert vur)') : st.slope.y < -0.15 ? L('downhill (hit softer)', 'yokuş aşağı (yumuşak vur)') : L('flat', 'eğimsiz');
+    infoEl.innerHTML = `<span>${L('Putt', 'Deneme')} <b>${Math.min(st.tries + (st.phase === 'aim' || st.phase === 'power' ? 1 : 0), st.maxTries)}</b></span><span>${L('Distance', 'Mesafe')} <b>${d.toFixed(1)} ft</b></span><span>${L('Break', 'Yan eğim')} <b>${side}</b></span><span>${L('Slope', 'Boy eğim')} <b>${up}</b></span>`;
+    stepEl.innerHTML = st.phase === 'aim' ? L('<b>1/2 Aim:</b> press <kbd>Space</kbd> when the yellow line points along the breaking path', '<b>1/2 Yön:</b> sarı çizgi deliğe doğru kırılan yolu gösterirken <kbd>Boşluk</kbd>') : st.phase === 'power' ? L('<b>2/2 Power:</b> press <kbd>Space</kbd> at the right height. The white line is for a flat green.', '<b>2/2 Güç:</b> çubuk doğru yükseklikteyken <kbd>Boşluk</kbd>. Beyaz çizgi düz zemin içindir.') : '&nbsp;';
   }
   return { init, open, release, isOpen, cancel };
 })();

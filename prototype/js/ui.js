@@ -1,366 +1,373 @@
-// Arayüz: tabela, hedefler, sekmeli panel, modallar, zaman kontrolü, kayıt ve ana döngü.
+// UI: header, panels, modals, view A/B, language, time controls, save and main loop.
 const UI = (() => {
   const $ = id => document.getElementById(id);
-  const KEY = 'parfabrikasi-proto-v2';
-  let speed = 1, tab = 'up', skipping = false, ring, lookSel = 'p', previewT = 0;
-  let lastPanel = '', panelTimer = 0, saveTimer = 0;
-  const hist = [];
-  let prevStats = null;
+  const KEY = 'parfabrikasi-proto-v3';
+  let speed = 1, tab = 'up', skipping = false, ring, lookSel = 'p', lookWorld = -1, previewT = 0;
+  let lastPanel = '', panelTimer = 0, saveTimer = 0, wasBlocked = false;
+  const hist = []; let prevStats = null;
   const fmtRel = x => x === 0 ? 'E' : x > 0 ? '+' + x : '' + x;
+  const cur = (k, v) => `<span class="cur cur-${k}" title="${N(CUR[k])}">${CUR[k].icon}</span>${U.fmt(v)}`;
+  const costHtml = c => ['data', 'shards', 'medals'].filter(k => c[k]).map(k => cur(k, c[k])).join(' ');
 
-  // ---------- kayıt ----------
-  function save() { try { const S = E.get(); S.lastSeen = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* depolama kapalı olabilir */ } }
-  function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v === 2) return s; } catch (e) { } return null; }
+  // ---------- save ----------
+  function save() { try { const S = E.get(); S.lastSeen = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage may be blocked */ } }
+  function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v === 3) return s; } catch (e) { } return null; }
 
-  // ---------- modal ve bildirim ----------
+  // ---------- modal and toast ----------
   let modalOpen = false, modalClose = null;
-  function modal(html, o = {}) {
-    const m = $('modal'), c = $('modalCard');
-    c.className = 'mcard' + (o.wide ? ' wide' : '');
-    c.innerHTML = html; m.hidden = false; modalOpen = true; modalClose = o.onClose || null;
-    o.onMount && o.onMount(c);
-  }
+  function modal(html, o = {}) { const m = $('modal'), c = $('modalCard'); c.className = 'mcard' + (o.wide ? ' wide' : ''); c.innerHTML = html; m.hidden = false; modalOpen = true; modalClose = o.onClose || null; o.onMount && o.onMount(c); }
   function closeModal() { $('modal').hidden = true; modalOpen = false; const cb = modalClose; modalClose = null; cb && cb(); }
-  function toast(text, kind = '') {
-    if (skipping) return;
-    const t = U.el('div', 'toast ' + kind, text);
-    $('toasts').appendChild(t); setTimeout(() => t.remove(), 3800);
-    while ($('toasts').children.length > 5) $('toasts').firstChild.remove();
-  }
+  function toast(text, kind = '') { if (skipping) return; const t = U.el('div', 'toast ' + kind, text); $('toasts').appendChild(t); setTimeout(() => t.remove(), 4200); while ($('toasts').children.length > 5) $('toasts').firstChild.remove(); }
   function ping(id) { const b = $(id); if (!b) return; b.classList.add('ping'); setTimeout(() => b.classList.remove('ping'), 3000); }
 
-  // ---------- olay kancaları ----------
-  const UNLOCK_MSG = { 3: 'Duruş açıldı: art arda mükemmel vuruş seri çarpanı verir', 6: 'Top açıldı: her 10 seviyede ×1.5', 9: 'Rüzgâr ve Haftalık Turnuva açıldı', 12: 'Kulüp Evi açıldı: çevrimdışı tavanı uzar' };
-  E.hooks.shot = e => { Scene.shotEvent(e); };
-  E.hooks.hole = ({ n, par, strokes, rel, stars, auto, courseDone }) => {
-    const name = { '-3': 'ALBATROS', '-2': 'EAGLE', '-1': 'BİRDİE', '0': 'PAR', '1': 'BOGEY', '2': 'DOUBLE BOGEY' }[rel] || (rel < -3 ? 'EFSANE' : '+' + rel);
-    Scene.banner(`${name} ${stars ? U.stars(stars) : ''}`, `${strokes} vuruş · par ${par}${auto ? ' · putt oynanmadı (3 putt sayıldı)' : ''} · sandık düştü`, stars >= 3 ? '#ffd23f' : stars === 2 ? '#fff' : '#f3e3b0', 2.4);
-    if (stars === 3) Scene.confetti();
-    if (UNLOCK_MSG[n]) toast(UNLOCK_MSG[n], 'gold');
-    ping('sChestBtn');
-    if (courseDone) {
-      Scene.confetti(); Scene.confetti();
-      const c = E.courseOf(n);
-      setTimeout(() => modal(`<h3>Kurs ${c} tamamlandı</h3><div class="trophy">🏆</div><p><b>${E.courseName(c)}</b> bitti. Kalıcı kupa çarpanı: tüm mesafeler <b>×${CFG.trophyMult}</b> (toplam ×${E.mTrophy().toFixed(0)}).</p><p>Sıradaki: <b>Kurs ${c + 1} · ${E.courseName(c + 1)}</b>. Sıfırlama yok; kaldığın yerden devam.</p><div class="btnrow"><button class="btn primary" id="cOk">Devam</button></div>`, { onMount: m => m.querySelector('#cOk').addEventListener('click', closeModal) }), 600);
-    }
-  };
-  E.hooks.toast = (t, k) => toast(t, k);
-
-  // ---------- vuruş ve putt ----------
-  function swing() {
-    if (modalOpen || Putt.isOpen() || Tour.isOpen()) return;
-    const q = ring.press(); if (q == null) return;
-    Scene.onSwingPlayer(E.manualSwing(q));
+  // ---------- language ----------
+  function applyLang() {
+    LANG.cur = E.get().settings.lang || 'en';
+    document.documentElement.lang = LANG.cur;
+    document.querySelectorAll('[data-en]').forEach(el => { el.textContent = LANG.cur === 'tr' && el.dataset.tr ? el.dataset.tr : el.dataset.en; });
+    document.querySelectorAll('#langBtn button').forEach(b => b.classList.toggle('on', b.dataset.lang === LANG.cur));
+    renderPanel(true);
   }
-  function openPutt() {
-    const run = E.get().run;
-    if (!E.greenPhase() || Putt.isOpen()) return;
-    const key = run.n;
-    Putt.open({
-      distFt: 8 + Math.random() * 14, title: `Delik ${E.holeIn(run.n)} · Yeşil`,
-      sub: `Şu ana kadar ${run.shot.strokes} vuruş · par ${E.parOf(run.n)}`,
-      window: 6 + E.res('calm') + E.eqStat('putt'), maxTries: 4, guide: 0.4 + 0.1 * E.res('read'), calm: E.res('calm'),
-      skipTries: 3, skipLabel: 'Geç (3 putt)',
-      onDone: (tries, info) => { if (E.get().run.n === key) E.puttDone(info && info.skipped ? 3 : tries); },
+
+  // ---------- views ----------
+  let viewA, viewB;
+  function setView(v) {
+    E.get().settings.view = v;
+    const st = $('stage');
+    st.classList.toggle('split', v === 'split');
+    $('sceneA').hidden = v === 'range'; $('sceneB').hidden = v === 'side';
+    viewA.active = v !== 'range'; viewB.active = v !== 'side';
+    document.querySelectorAll('#viewBtn button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+    requestAnimationFrame(() => { viewA.resize(); viewB.resize(); });
+  }
+
+  // ---------- hooks ----------
+  E.hooks.shot = e => {
+    Stage.views.forEach(v => v.shot && v.shot(e));
+    const T = { fairway: [L('FAIRWAY', 'FAIRWAY'), '#bff0a0', L('Clean shot', 'Temiz vuruş')], rough: [L('ROUGH', 'ROUGH'), '#f3e3b0', L('Next shot slower', 'Sonraki vuruş yavaş')], bunker: [L('BUNKER!', 'BUNKER!'), '#ffd59a', L('+1 stroke · heavy lie', '+1 vuruş · ağır zemin')], water: [L('WATER!', 'SU!'), '#9fd2ff', L('+1 penalty stroke', '+1 ceza vuruşu')], green: [L('ON THE GREEN', 'YEŞİLDE'), '#d8ffb5', L('Time to putt', 'Putt zamanı')] }[e.land];
+    Stage.banner(L(`Shot ${e.k}: `, `${e.k}. vuruş: `) + T[0], `${T[2]} · ${L('lie', 'zemin')} ×${E.terrainMult(e.land).toFixed(2)}`, T[1], 1.8);
+  };
+  E.hooks.hole = ({ n, par, strokes, rel, stars, auto, worldDone }) => {
+    const name = { '-3': 'ALBATROSS', '-2': 'EAGLE', '-1': 'BIRDIE', '0': 'PAR', '1': 'BOGEY', '2': 'DOUBLE BOGEY' }[rel] || (rel < -3 ? 'LEGEND' : '+' + rel);
+    Stage.banner(`${name} ${stars ? U.stars(stars) : ''}`, L(`${strokes} strokes · par ${par}`, `${strokes} vuruş · par ${par}`) + (auto ? L(' · putt not played (2 putts)', ' · putt oynanmadı (2 putt)') : ''), stars >= 3 ? '#ffd23f' : '#fff', 2.4);
+    if (n % 6 === 0) { toast(L('Gear bag earned!', 'Ekipman çantası kazandın!'), 'gold'); ping('sBagBtn'); }
+    if (worldDone) setTimeout(() => worldDoneModal(E.worldOf(n)), 700);
+  };
+  E.hooks.ach = a => { toast(`🏆 ${N(a.name)} · ${E.rewardText(a.reward)}`, 'gold'); };
+  E.hooks.world = ({ w }) => { worldModal(w); };
+  E.hooks.toast = (t, k) => toast(t, k);
+  function worldDoneModal(w) {
+    const next = WORLDS[w + 1], S0 = E.get();
+    if (!next) return;
+    const ok = E.totalStars() >= next.stars;
+    modal(`<h3>${L('World complete', 'Dünya tamamlandı')}: ${N(WORLDS[w].name)}</h3><div class="trophy">🏆</div>
+      <p>${L(`Permanent trophy: all distance ×${CFG.trophyMult}.`, `Kalıcı kupa: tüm mesafeler ×${CFG.trophyMult}.`)}</p>
+      <p>${L('Next', 'Sıradaki')}: <b>${N(next.name)}</b> · ${L('needs', 'gerekli')} <b>${next.stars} ★</b> (${L('you have', 'sende')} ${E.totalStars()} ★)</p>
+      ${ok ? '' : `<p class="note gold">${L('Not enough stars yet. Replay putts on earlier holes in the Worlds tab to raise their stars.', 'Henüz yıldız yetmiyor. Dünyalar sekmesinde önceki deliklerin putt\'larını tekrar oynayıp yıldız topla.')}</p>`}
+      <div class="btnrow"><button class="btn primary" id="wOk">${L('Continue', 'Devam')}</button>${ok ? '' : `<button class="btn gold" id="wGo">${L('Open Worlds', 'Dünyaları aç')}</button>`}</div>`, {
+      onMount: c => { c.querySelector('#wOk').addEventListener('click', closeModal); const g = c.querySelector('#wGo'); g && g.addEventListener('click', () => { closeModal(); setTab('worlds'); }); },
+    });
+    void S0;
+  }
+  function worldModal(w) {
+    const W = WORLDS[w];
+    modal(`<h3>${L('New world', 'Yeni dünya')}: ${N(W.name)}</h3><canvas id="wPrev" class="lookprev"></canvas>
+      <p>${N(W.desc)}</p>
+      <div class="kv"><span>${N(W.windName)}</span><b>${W.wind}–${W.wind + W.step * W.gates.length} km/h</b><span>${L('Terrain difficulty', 'Zemin zorluğu')}</span><b>+${W.terrain}</b>
+      ${W.heat < 1 ? `<span>${L('Heat (helper speed)', 'Sıcak (yardımcı hızı)')}</span><b>×${W.heat}</b>` : ''}${W.gravity < 1 ? `<span>${L('Gravity', 'Yerçekimi')}</span><b>${W.gravity}g</b>` : ''}
+      ${W.suit ? `<span>${L('Outfit', 'Kıyafet')}</span><b>${N(WORLD_OUTFIT[W.suit])}</b>` : ''}</div>
+      <div class="btnrow"><button class="btn primary" id="nwOk">${L('Tee off', 'Başla')}</button></div>`, {
+      onMount: c => { c.querySelector('#nwOk').addEventListener('click', closeModal); setTimeout(() => { const cv = c.querySelector('#wPrev'); cv && Art.preview(cv, E.get().meta.looks.p, W, true, -1); }, 30); },
     });
   }
 
-  // ---------- zaman atlama ----------
+  // ---------- swing and putt ----------
+  function swing() { if (modalOpen || Putt.isOpen() || Tour.isOpen()) return; const q = ring.press(); if (q == null) return; Stage.onSwingPlayer(E.manualSwing(q)); }
+  const puttOpts = () => ({ window: 6 + E.res('putt_calm'), guide: 0.4 + 0.1 * E.res('putt_read'), calm: E.res('putt_calm') });
+  function openPutt() {
+    const run = E.get().run; if (!E.greenPhase() || Putt.isOpen()) return;
+    const key = run.n;
+    Putt.open(Object.assign(puttOpts(), {
+      distFt: 8 + Math.random() * 14, title: L(`Hole ${E.holeIn(run.n)} · Green`, `Delik ${E.holeIn(run.n)} · Yeşil`),
+      sub: L(`${run.shot.strokes} strokes so far · par ${E.parOf(run.n)}`, `Şimdiye kadar ${run.shot.strokes} vuruş · par ${E.parOf(run.n)}`),
+      maxTries: 4, skipTries: CFG.autoPutts, skipLabel: L('Skip (2 putts)', 'Geç (2 putt)'),
+      onDone: (tries, info) => { if (E.get().run.n === key) E.puttDone(info && info.skipped ? CFG.autoPutts : tries); },
+    }));
+  }
+  function openReplay(n) {
+    if (Putt.isOpen()) return;
+    Putt.open(Object.assign(puttOpts(), {
+      distFt: 8 + Math.random() * 14, title: L(`Replay · hole ${E.holeIn(n)}`, `Tekrar · delik ${E.holeIn(n)}`),
+      sub: L(`${E.get().meta.shots[n] ?? E.segCount(n)} strokes before the green · par ${E.parOf(n)}`, `Yeşile kadar ${E.get().meta.shots[n] ?? E.segCount(n)} vuruş · par ${E.parOf(n)}`),
+      maxTries: 4, skipTries: 4, skipLabel: L('Cancel', 'Vazgeç'),
+      onDone: (tries, info) => { if (info && info.skipped) return; const r = E.replayDone(n, tries); toast(r.newStar ? L(`New best: ${U.stars(r.stars)}`, `Yeni rekor: ${U.stars(r.stars)}`) : L('No improvement this time', 'Bu sefer gelişme yok'), r.newStar ? 'gold' : ''); renderPanel(true); },
+    }));
+  }
+
+  // ---------- skip ----------
   function skipModal() {
-    modal(`<h3>Zamanı ileri al</h3>
-      <p class="note">Seçtiğin süre aynı kurallarla adım adım simüle edilir. Araştırma zamanlayıcıları da ilerler.</p>
-      <div class="sec"><h3>Süre</h3><div class="opts">${[[60, '1 dk'], [600, '10 dk'], [3600, '1 saat'], [4 * 3600, '4 saat'], [12 * 3600, '12 saat'], [86400, '1 gün'], [3 * 86400, '3 gün']].map(([s, l], i) => `<label><input type="radio" name="skd" value="${s}" ${i === 2 ? 'checked' : ''}>${l}</label>`).join('')}</div></div>
-      <div class="sec"><h3>Oyuncu nasıl geçirdi?</h3><div class="opts">
-        <label><input type="radio" name="skp" value="offline" checked>Uygulama kapalı (%${Math.round(E.offlineEff() * 100)}, tavanlı)</label>
-        <label><input type="radio" name="skp" value="idle">Açık ama dokunmadı</label>
-        <label><input type="radio" name="skp" value="active">Aktif oynadı (0.8 vuruş/sn)</label></div></div>
-      <div class="sec"><h3>Yükseltmeler</h3><div class="opts">
-        <label><input type="radio" name="skb" value="all" checked>En iyi orana göre otomatik al</label>
-        <label><input type="radio" name="skb" value="none">Hiç alma</label></div></div>
-      <p class="note">Çevrimdışı tavanı <b>${U.fmtTime(E.offlineCapS())}</b>. Atlamada putt oynanmaz (3 putt sayılır), sandıklar birikir.</p>
-      <div class="btnrow"><button class="btn primary" id="skGo">İleri al</button><button class="btn" id="skCancel">Vazgeç</button></div>`, {
+    modal(`<h3>${L('Fast-forward time', 'Zamanı ileri al')}</h3>
+      <p class="note">${L('The chosen time is simulated step by step with the same rules. Research timers run too.', 'Seçilen süre aynı kurallarla adım adım simüle edilir. Araştırmalar da ilerler.')}</p>
+      <div class="sec"><h3>${L('Duration', 'Süre')}</h3><div class="opts">${[[600, '10 min', '10 dk'], [3600, '1 h', '1 sa'], [4 * 3600, '4 h', '4 sa'], [12 * 3600, '12 h', '12 sa'], [86400, '1 day', '1 gün'], [3 * 86400, '3 days', '3 gün']].map(([s, a, b], i) => `<label><input type="radio" name="skd" value="${s}" ${i === 1 ? 'checked' : ''}>${L(a, b)}</label>`).join('')}</div></div>
+      <div class="sec"><h3>${L('How was it spent?', 'Nasıl geçti?')}</h3><div class="opts">
+        <label><input type="radio" name="skp" value="offline" checked>${L(`App closed (${Math.round(E.offlineEff() * 100)}%, capped)`, `Uygulama kapalı (%${Math.round(E.offlineEff() * 100)}, tavanlı)`)}</label>
+        <label><input type="radio" name="skp" value="idle">${L('Open, not touched', 'Açık, dokunulmadı')}</label>
+        <label><input type="radio" name="skp" value="active">${L('Playing actively', 'Aktif oynandı')}</label></div></div>
+      <div class="sec"><h3>${L('Upgrades', 'Yükseltmeler')}</h3><div class="opts">
+        <label><input type="radio" name="skb" value="all" checked>${L('Auto-buy best value', 'En iyisini otomatik al')}</label><label><input type="radio" name="skb" value="none">${L('Do not buy', 'Alma')}</label></div></div>
+      <div class="btnrow"><button class="btn primary" id="skGo">${L('Fast-forward', 'İleri al')}</button><button class="btn" id="skNo">${L('Cancel', 'Vazgeç')}</button></div>`, {
       onMount: c => {
-        c.querySelector('#skCancel').addEventListener('click', closeModal);
-        c.querySelector('#skGo').addEventListener('click', () => {
-          const sec = +c.querySelector('input[name=skd]:checked').value, prof = c.querySelector('input[name=skp]:checked').value, buy = c.querySelector('input[name=skb]:checked').value;
-          closeModal(); runSkip(sec, prof, buy, 'İleri alındı');
-        });
+        c.querySelector('#skNo').addEventListener('click', closeModal);
+        c.querySelector('#skGo').addEventListener('click', () => { const s = +c.querySelector('input[name=skd]:checked').value, p = c.querySelector('input[name=skp]:checked').value, b = c.querySelector('input[name=skb]:checked').value; closeModal(); runSkip(s, p, b, L('Time skipped', 'Zaman atlandı')); });
       },
     });
   }
   function runSkip(sec, prof, buy, title) {
     skipping = true; const r = E.simulate(sec, prof, buy); skipping = false;
-    Scene.resize(); save();
+    viewA.resize(); viewB.resize(); save();
     const b = r.before, a = r.after;
-    const rows = [
-      ['Süre', U.fmtTime(r.seconds) + (r.capped ? ` (yalnızca ${U.fmtTime(r.used)} sayıldı)` : '')],
-      ['Kazanılan yarda', U.fmt(Math.max(0, a.total - b.total))],
-      ['Delik', `${b.n} → ${a.n}${a.n - b.n ? ' (' + (a.n - b.n) + ' delik)' : ''}`],
-      ['Yeni yıldız', String(a.stars - b.stars)],
-      ['Alınan yükseltme seviyesi', String(a.lv - b.lv)],
-      ['Biriken sandık', `${a.chests - b.chests}${a.lost > b.lost ? ' · raf doldu, ' + (a.lost - b.lost) + ' kayıp' : ''}`],
-      ['Biten araştırma', String(a.res - b.res)],
-    ];
-    modal(`<h3>${title}</h3><p class="note">${{ offline: 'Uygulama kapalı', idle: 'Açık, yalnızca otomatik', active: 'Aktif oyun simülasyonu' }[prof]} · hesap ${Math.round(r.ms)} ms</p>
-      <table class="sumtable">${rows.map(x => `<tr><td>${x[0]}</td><td>${x[1]}</td></tr>`).join('')}</table>
-      ${r.capped ? `<p class="note gold">Tavan doldu: ${U.fmtTime(r.seconds - r.used)} boşa gitti. Kulüp Evi tavanı uzatır.</p>` : ''}
-      <div class="btnrow" style="margin-top:12px"><button class="btn primary" id="sumOk">Devam</button>${a.chests > 0 ? '<button class="btn gold" id="sumC">Sandıkları aç</button>' : ''}</div>`, {
-      onMount: c => { c.querySelector('#sumOk').addEventListener('click', closeModal); const x = c.querySelector('#sumC'); x && x.addEventListener('click', () => { closeModal(); openAllChests(); }); },
+    const rows = [[L('Time', 'Süre'), U.fmtTime(sec) + (r.capped ? L(` (only ${U.fmtTime(r.used)} counted)`, ` (yalnızca ${U.fmtTime(r.used)} sayıldı)`) : '')],
+      [N(CUR.yards), '+' + U.fmt(Math.max(0, a.total - b.total))], [L('Hole', 'Delik'), `${b.n} → ${a.n}`], [N(CUR.stars), '+' + (a.stars - b.stars)],
+      [N(CUR.data), '+' + U.fmt(a.data - b.data)], [N(CUR.medals), '+' + U.fmt(a.medals - b.medals)], [N(CUR.bags), '+' + (a.bags - b.bags) + (a.lost > b.lost ? L(` · rack full, ${a.lost - b.lost} lost`, ` · raf dolu, ${a.lost - b.lost} kayıp`) : '')],
+      [L('Research levels', 'Araştırma seviyesi'), '+' + (a.res - b.res)], [L('Achievements', 'Başarımlar'), '+' + (a.ach - b.ach)]];
+    const stuck = r.gate ? L(`Stuck at a wind gate: ${E.holeWind()} km/h vs wind control ${E.windControl()}.`, `Rüzgâr kapısında takıldı: ${E.holeWind()} km/s, rüzgâr kontrolü ${E.windControl()}.`) : r.locked ? L(`World locked: need ${E.world().stars}★, you have ${E.totalStars()}★.`, `Dünya kilitli: ${E.world().stars}★ gerekli, sende ${E.totalStars()}★.`) : '';
+    modal(`<h3>${title}</h3><table class="sumtable">${rows.map(x => `<tr><td>${x[0]}</td><td>${x[1]}</td></tr>`).join('')}</table>${stuck ? `<p class="note gold">${stuck}</p>` : ''}
+      <div class="btnrow"><button class="btn primary" id="sOk">${L('Continue', 'Devam')}</button>${E.get().meta.bags.length ? `<button class="btn gold" id="sBag">${L('Open bags', 'Çantaları aç')}</button>` : ''}</div>`, {
+      onMount: c => { c.querySelector('#sOk').addEventListener('click', closeModal); const x = c.querySelector('#sBag'); x && x.addEventListener('click', () => { closeModal(); setTab('gear'); }); },
     });
   }
 
-  // ---------- sandık ----------
-  const chestCol = t => ['#8a948e', '#3f9a52', '#3a6ee8', '#8d4fd1'][t] || '#8a948e';
-  function resultHtml(r) {
-    if (r.kind === 'yards') return `<div class="res r1"><div class="rn">Yarda</div><div class="it">+${U.fmt(r.amount)} yd</div><p class="note">${Math.round(r.secs)} saniyelik gelir</p></div>`;
-    if (r.kind === 'bilgi') return `<div class="res r2"><div class="rn">Bilgi</div><div class="it">+${r.amount} Bilgi</div><p class="note">Araştırma başlatmak için</p></div>`;
-    if (r.kind === 'parts') return `<div class="res r1"><div class="rn">Parça</div><div class="it">+${r.amount} parça</div><p class="note">Ekipman geliştirmek için</p></div>`;
-    const it = r.item, rar = RARITY[it.rar], ex = it.ex ? ` · ${EXTRA[it.ex].f(it.exv)} ${EXTRA[it.ex].name}` : '';
-    const owned = Object.keys(E.get().meta.equip.owned).length;
-    return `<div class="res ${rar.cls}"><div class="rn">${rar.name} · ${SLOTS[it.slot]}${r.pity ? ' · garanti' : ''}</div><div class="it">${it.name}</div>
-      <p class="note">+%${Math.round(it.dist * 100)} mesafe${ex} · ${SLOT_TOUR[it.slot]}</p>
-      <p class="note"><b>${r.isNew ? 'YENİ! Albüme eklendi (' + owned + '/24)' : 'Kopya → +' + r.dupParts + ' parça'}</b>${r.equipped ? ' · otomatik takıldı' : ''}</p></div>`;
+  // ---------- bags ----------
+  const itemName = it => N(it.name);
+  function statText(it, lv) {
+    const st = itemStats(it, lv), p = [];
+    if (st.power) p.push(`${L('Power', 'Güç')} +${Math.round(st.power * 100)}%`);
+    if (st.tempo) p.push(`${L('Tempo', 'Tempo')} +${Math.round(st.tempo * 100)}%`);
+    if (st.acc) p.push(`${L('Accuracy', 'İsabet')} +${st.acc}`);
+    if (st.wc) p.push(`${L('Wind control', 'Rüzgâr kontrolü')} +${st.wc}`);
+    return p.join(' · ');
   }
-  function openOneChest() {
-    const S = E.get(); if (!S.meta.chests.length) return;
-    const tier = S.meta.chests[0].tier, r = E.openChest(0);
-    modal(`<h3>Sandık</h3><div class="reveal"><div class="chesticon" style="--cc:${chestCol(tier)}"><i></i><b></b></div><p class="note">${RARITY[tier].name} sandık</p>${resultHtml(r)}</div>
-      <div class="btnrow"><button class="btn primary" id="bOk">Tamam</button>${S.meta.chests.length ? `<button class="btn gold" id="bNext">Sıradakini aç (${S.meta.chests.length})</button>` : ''}${r.kind === 'item' ? '<button class="btn" id="bAlb">Albüme git</button>' : ''}</div>`, {
-      onMount: c => {
-        c.querySelector('#bOk').addEventListener('click', closeModal);
-        const n = c.querySelector('#bNext'); n && n.addEventListener('click', openOneChest);
-        const a = c.querySelector('#bAlb'); a && a.addEventListener('click', () => { closeModal(); setTab('gear'); });
-      },
+  function openBagUI(tierFilter) {
+    const meta = E.get().meta, idx = tierFilter == null ? 0 : meta.bags.indexOf(tierFilter);
+    if (idx < 0) return;
+    const r = E.openBag(idx), def = BAGS[r.tier];
+    const cards = r.items.map((x, i) => `<div class="icard" style="--rc:${RARITY[x.item.rar].col};animation-delay:${0.9 + i * 0.35}s">
+      <div class="rn">${N(RARITY[x.item.rar])} · ${N(SLOTS[x.item.slot])}</div><div class="it">${itemName(x.item)}</div><div class="st">${statText(x.item, meta.equip.owned[x.item.id])}</div>
+      <div class="nw">${x.isNew ? L('NEW · added to album', 'YENİ · albüme eklendi') : L(`Duplicate → +${x.dup} shards`, `Kopya → +${x.dup} parça`)}${x.equipped ? L(' · equipped', ' · takıldı') : ''}</div></div>`).join('');
+    modal(`<h3>${N(def)}</h3><div class="reveal"><div class="bagicon2" style="--cc:${def.col}"><i></i><b></b></div></div>
+      <div class="icards">${cards}</div><p class="note">+${r.shards} ${N(CUR.shards)} · ${L('Album', 'Albüm')} ${Object.keys(meta.equip.owned).length}/${ITEMS.length}</p>
+      <div class="btnrow"><button class="btn primary" id="bOk">${L('Done', 'Tamam')}</button>${meta.bags.length ? `<button class="btn gold" id="bNext">${L('Open next', 'Sıradakini aç')} (${meta.bags.length})</button>` : ''}</div>`, {
+      onMount: c => { c.querySelector('#bOk').addEventListener('click', () => { closeModal(); renderPanel(true); }); const n = c.querySelector('#bNext'); n && n.addEventListener('click', () => openBagUI()); },
     });
   }
-  function openAllChests() {
-    const S = E.get(), out = [];
-    while (S.meta.chests.length) out.push(E.openChest(0));
-    if (!out.length) return;
-    const sum = k => out.filter(r => r.kind === k).reduce((a, r) => a + r.amount, 0), items = out.filter(r => r.kind === 'item');
-    modal(`<h3>${out.length} sandık açıldı</h3>
-      <table class="sumtable"><tr><td>Yarda</td><td>+${U.fmt(sum('yards'))}</td></tr><tr><td>Bilgi</td><td>+${sum('bilgi')}</td></tr><tr><td>Parça</td><td>+${sum('parts') + items.reduce((a, r) => a + (r.dupParts || 0), 0)}</td></tr><tr><td>Ekipman</td><td>${items.length} (${items.filter(r => r.isNew).length} yeni)</td></tr></table>
-      ${items.map(r => `<p class="note"><b class="${RARITY[r.item.rar].cls}" style="color:var(--rc)">${RARITY[r.item.rar].name}</b> ${r.item.name} ${r.isNew ? '<b>· YENİ</b>' : '· kopya +' + r.dupParts + ' parça'}${r.equipped ? ' · takıldı' : ''}</p>`).join('')}
-      <div class="btnrow"><button class="btn primary" id="aOk">Tamam</button></div>`, { onMount: c => c.querySelector('#aOk').addEventListener('click', closeModal) });
-  }
 
-  // ---------- panel: yükseltme ----------
-  function upEffect(key, L) {
-    const run = E.get().run;
+  // ---------- panels ----------
+  function buyBtn(key) {
+    const S = E.get(), q = E.quote(key, S.settings.buyAmt), it = q.it;
+    if (it.L >= it.max) return `<button class="buy" disabled>MAX</button>`;
+    return `<button class="buy" data-act="buy" data-key="${key}" ${q.cost <= S.run.yards && q.n > 0 ? '' : 'disabled'}>${U.fmt(q.cost)}<small>+${q.n} ${L('lv', 'sv')}</small></button>`;
+  }
+  function upEffect(key, Lv) {
     switch (key) {
-      case 'head': return `Taban mesafe <b>${U.fmt((5 + 2 * L) * E.msMult(L))}</b> → ${U.fmt((5 + 2 * (L + 1)) * E.msMult(L + 1))} yd${(L + 1) % 25 === 0 ? ' <span class="tag">×1.5 eşik</span>' : ` · ${25 - L % 25} sv sonra ×1.5`}`;
-      case 'shaft': { const p = l => Math.min(E.pMax(), 0.05 + 0.01 * l + E.eqStat('perfect')); return `Oto mükemmel şansı <b>%${(p(L) * 100).toFixed(0)}</b> → %${(p(L + 1) * 100).toFixed(0)}`; }
-      case 'grip': {
-        const o0 = E.landingOdds(); run.up.grip++; const o1 = E.landingOdds(); const fm = E.terrainMult('fairway'); run.up.grip--;
-        return `Sonraki vuruşta fairway <b>%${Math.round(o0.fairway * 100)}</b> → %${Math.round(o1.fairway * 100)}, bunker %${Math.round(o0.bunker * 100)} → %${Math.round(o1.bunker * 100)}${fm > 1 ? ' · fairway ×' + fm.toFixed(1) : ''}`;
-      }
-      case 'ball': return `Top çarpanı <b>×${E.ballMult(L).toFixed(2)}</b> → ×${E.ballMult(L + 1).toFixed(2)}${(L + 1) % 10 === 0 ? ' <span class="tag">×1.5 sıçrama</span>' : ` · ${10 - (L % 10)} sv sonra ×1.5`}`;
-      case 'stance': return `Seri tavanı <b>×${(1 + 0.15 * L).toFixed(2)}</b> → ×${(1 + 0.15 * (L + 1)).toFixed(2)} (her mükemmel +%5)`;
-      case 'clubhouse': return `Çevrimdışı tavanı <b>${4 + 2 * L} sa</b> → ${4 + 2 * (L + 1)} sa`;
+      case 'power': return L(`Your base distance <b>${U.fmt((5 + 2 * Lv) * E.msMult(Lv))}</b> → ${U.fmt((5 + 2 * (Lv + 1)) * E.msMult(Lv + 1))} yd · ×1.5 every 25 lv`, `Temel mesafen <b>${U.fmt((5 + 2 * Lv) * E.msMult(Lv))}</b> → ${U.fmt((5 + 2 * (Lv + 1)) * E.msMult(Lv + 1))} yd · her 25 sv'de ×1.5`);
+      case 'timing': return L(`Helper perfect chance <b>${Math.round(E.pPerfect() * 100)}%</b> → ${Math.round(Math.min(0.5, 0.05 + 0.01 * (Lv + 1)) * 100)}%`, `Yardımcı mükemmel şansı <b>%${Math.round(E.pPerfect() * 100)}</b> → %${Math.round(Math.min(0.5, 0.05 + 0.01 * (Lv + 1)) * 100)}`);
+      case 'accuracy': { const run = E.get().run, o0 = E.landingOdds(), w0 = E.windControl(); run.up.accuracy++; const o1 = E.landingOdds(), w1 = E.windControl(); run.up.accuracy--; return L(`+1 Accuracy: fairway <b>${Math.round(o0.fairway * 100)}%</b> → ${Math.round(o1.fairway * 100)}%, wind control ${w0} → ${w1}`, `+1 İsabet: fairway <b>%${Math.round(o0.fairway * 100)}</b> → %${Math.round(o1.fairway * 100)}, rüzgâr kontrolü ${w0} → ${w1}`); }
+      case 'ball': return L(`Ball ×<b>${E.ballMult(Lv).toFixed(2)}</b> → ×${E.ballMult(Lv + 1).toFixed(2)} · ×1.5 every 10 lv`, `Top ×<b>${E.ballMult(Lv).toFixed(2)}</b> → ×${E.ballMult(Lv + 1).toFixed(2)} · her 10 sv'de ×1.5`);
+      case 'stance': return L(`Manual streak cap ×<b>${(1 + 0.15 * Lv).toFixed(2)}</b> → ×${(1 + 0.15 * (Lv + 1)).toFixed(2)}`, `Elle seri tavanı ×<b>${(1 + 0.15 * Lv).toFixed(2)}</b> → ×${(1 + 0.15 * (Lv + 1)).toFixed(2)}`);
+      case 'clubhouse': return L(`Offline cap <b>${4 + 2 * Lv} h</b> → ${4 + 2 * (Lv + 1)} h`, `Çevrimdışı tavanı <b>${4 + 2 * Lv} sa</b> → ${4 + 2 * (Lv + 1)} sa`);
     }
     return '';
   }
-  function buyBtn(key) {
-    const S = E.get(), q = E.quote(key, S.settings.buyAmt), it = q.it;
-    if (it.L >= it.max) return `<button class="buy" disabled>MAKS</button>`;
-    return `<button class="buy" data-act="buy" data-key="${key}" ${q.cost <= S.run.yards && q.n > 0 ? '' : 'disabled'}>${U.fmt(q.cost)}<small>+${q.n} sv</small></button>`;
-  }
   function panelUp() {
     const S = E.get(), run = S.run, amt = S.settings.buyAmt;
-    let h = `<div class="sec"><h3>Otomatik vurucular <span class="amt">${[1, 10, 100, 'max'].map(a => `<button data-act="amt" data-v="${a}" class="${amt === a ? 'on' : ''}">${a === 'max' ? 'Maks' : '×' + a}</button>`).join('')}</span></h3>`;
-    run.hitters.forEach((L, i) => {
-      const rate = 0.4 * L * E.msMult(L);
-      h += `<div class="uprow"><canvas class="mini" data-look="h${i}"></canvas><div><div class="nm">Vurucu ${i + 1}<small>sv ${L}</small></div>
-        <div class="ef">${L ? `<b>${rate.toFixed(1)}</b> vuruş/sn · ${25 - L % 25} sv sonra ×1.5` : 'Henüz vurmuyor: 1 seviye al'}</div></div>${buyBtn('h' + i)}</div>`;
-    });
-    if (run.hitters.length < 10) {
-      const r = RESEARCH[0], lv = E.res('slot');
-      h += `<div class="uprow locked"><span class="mini"></span><div><div class="nm">Vurucu ${run.hitters.length + 1}<small>kilitli</small></div><div class="ef">Araştırma: ${r.cost(lv)} Bilgi · ${U.fmtTime(r.dur(lv))}</div></div><button class="buy" data-act="tab" data-v="res">Araştırma</button></div>`;
-    }
-    h += `</div><div class="sec"><h3>Sopa ve top</h3>`;
-    for (const key of ['head', 'shaft', 'grip', 'ball', 'stance', 'clubhouse']) {
+    let h = `<div class="sec"><h3>${L('Your training (your own power)', 'Antrenmanın (kendi gücün)')} <span class="amt">${[1, 10, 100, 'max'].map(a => `<button data-act="amt" data-v="${a}" class="${amt === a ? 'on' : ''}">${a === 'max' ? 'Max' : '×' + a}</button>`).join('')}</span></h3>`;
+    for (const key of ['power', 'accuracy', 'timing', 'ball', 'stance', 'clubhouse']) {
       const u = CFG.up[key], it = E.item(key);
-      if (!it.ok) { h += `<div class="uprow locked"><span class="mini"></span><div><div class="nm">${u.name}</div><div class="ef">Delik ${u.unlock} bitince açılır</div></div><button class="buy" disabled>Kilitli</button></div>`; continue; }
-      h += `<div class="uprow"><span class="mini ico ico-${key}"></span><div><div class="nm">${u.name}<small>sv ${it.L}${it.max < 1000 ? '/' + it.max : ''}</small></div><div class="ef">${upEffect(key, it.L)}</div></div>${buyBtn(key)}</div>`;
+      if (!it.ok) { h += `<div class="uprow locked"><span class="mini ico ico-${key}"></span><div><div class="nm">${N(u.name)}</div><div class="ef">${L(`Unlocks after hole ${u.unlock}`, `Delik ${u.unlock} bitince açılır`)}</div></div><button class="buy" disabled>${L('Locked', 'Kilitli')}</button></div>`; continue; }
+      h += `<div class="uprow"><span class="mini ico ico-${key}"></span><div><div class="nm">${N(u.name)}<small>${L('lv', 'sv')} ${it.L}${it.max < 1000 ? '/' + it.max : ''}</small></div><div class="ef">${upEffect(key, it.L)}</div></div>${buyBtn(key)}</div>`;
     }
-    h += `</div><p class="note">Sezon yok: aldığın seviyeler kalıcı. Her 25 seviyede Sopa Başı ve vurucular ×1.5 kazanır.</p>`;
-    return h;
+    h += `</div><div class="sec"><h3>${L('Helpers', 'Yardımcılar')}</h3>`;
+    run.hitters.forEach((hh, i) => {
+      const t = hh.type ? HELPER_TYPES[hh.type] : null;
+      h += `<div class="uprow"><canvas class="mini" data-look="h${i}"></canvas><div><div class="nm">${L('Helper', 'Yardımcı')} ${i + 1}<small>${L('lv', 'sv')} ${hh.L}</small>${t ? `<span class="tag" style="background:${t.col};color:#fff">${N(t.short)} ${hh.rank}</span>` : `<span class="tag warn">${L('choose specialty', 'uzmanlık seç')}</span>`}</div>
+        <div class="ef">${hh.L ? `${U.fmt(E.helperRate(hh))} ${L('swings/s', 'vuruş/sn')} · ${L('value', 'değer')} ×${E.helperValue(hh).toFixed(2)}` : L('Not swinging yet: buy 1 level', 'Henüz vurmuyor: 1 seviye al')}</div></div>${buyBtn('h' + i)}</div>`;
+    });
+    if (run.hitters.length < 10) { const r = RESEARCH[0], lv = E.res('slot'); h += `<div class="uprow locked"><span class="mini"></span><div><div class="nm">${L('Helper', 'Yardımcı')} ${run.hitters.length + 1}</div><div class="ef">${L('Research', 'Araştırma')}: ${costHtml(r.cost(lv))} · ${U.fmtTime(r.dur(lv))}</div></div><button class="buy" data-act="tab" data-v="res">${L('Research', 'Araştırma')}</button></div>`; }
+    return h + `</div>`;
   }
-
-  // ---------- panel: araştırma ----------
+  function meter(label, have, need, unit = '') {
+    const ok = have >= need, k = Math.min(1, have / Math.max(1, need));
+    return `<div class="meter ${ok ? 'ok' : 'bad'}"><div class="ml"><span>${label}</span><b>${have}${unit} / ${need}${unit}</b></div><div class="pbar"><i style="width:${(k * 100).toFixed(0)}%"></i></div></div>`;
+  }
+  function panelTeam() {
+    const S = E.get(), run = S.run, meta = S.meta, pf = E.profile(), w = E.world();
+    const gi = E.gateIdx(), nextGate = w.gates.find(g => g >= E.holeIn(run.n));
+    let h = `<div class="sec"><h3>${L('You vs this hole', 'Sen ve bu delik')}</h3><div class="card">
+      <div class="prof"><canvas class="mini big" data-look="p"></canvas><div class="kv">
+        <span>${L('Power (training × ball × gear × research)', 'Güç (antrenman × top × ekipman × araştırma)')}</span><b>${U.fmt(pf.power)}</b>
+        <span>${L('Accuracy', 'İsabet')}</span><b>${pf.acc}</b><span>${L('Wind control', 'Rüzgâr kontrolü')}</span><b>${pf.wc}</b><span>${L('Team tempo', 'Takım temposu')}</span><b>${U.fmt(pf.tempo)} ${L('swings/s', 'vuruş/sn')}</b></div></div>
+      ${meter(L('Accuracy vs terrain', 'İsabet ve zemin'), pf.acc, pf.need)}
+      ${meter(L(`Wind control vs ${N(w.windName).toLowerCase()} (this hole)`, `Rüzgâr kontrolü ve ${N(w.windName).toLowerCase()} (bu delik)`), pf.wc, E.holeWind(), '')}
+      ${nextGate ? meter(L(`Next wind gate: hole ${nextGate}`, `Sıradaki rüzgâr kapısı: delik ${nextGate}`), pf.wc, E.holeWind((E.worldOf(run.n)) * WORLD_HOLES + nextGate)) : ''}
+      <p class="note">${L('Your own power comes from training, club power from gear. Pick helpers that cover your weak side: low accuracy → Accurate hitters; low distance → Power hitters; slow → Fast hitters.', 'Kendi gücün antrenmandan, sopanın gücü ekipmandan gelir. Yardımcıları zayıf yanına göre seç: isabet düşükse İsabetli, mesafe düşükse Güçlü, yavaşsan Hızlı vurucu.')}</p></div></div>`;
+    h += `<div class="sec"><h3>${L('Helpers', 'Yardımcılar')} <span>${cur('medals', meta.medals)}</span></h3>`;
+    run.hitters.forEach((hh, i) => {
+      h += `<div class="helper"><canvas class="mini" data-look="h${i}"></canvas><div class="hb"><div class="nm">${L('Helper', 'Yardımcı')} ${i + 1} <small>${L('lv', 'sv')} ${hh.L}</small></div>
+        <div class="types">${Object.entries(HELPER_TYPES).map(([k, t]) => `<button class="tbtn ${hh.type === k ? 'on' : ''}" style="--tc:${t.col}" data-act="htype" data-i="${i}" data-v="${k}" title="${N(t.desc)}">${N(t.short)}</button>`).join('')}</div>
+        <div class="ef">${hh.type ? N(HELPER_TYPES[hh.type].desc) : L('Choose a specialty (first choice is free).', 'Bir uzmanlık seç (ilk seçim ücretsiz).')}${hh.type ? ` ${L('Switching costs', 'Değiştirmek')} ${HELPER_SWITCH_COST} ${N(CUR.medals)}.` : ''}</div></div>
+        ${hh.type ? (hh.rank >= HELPER_RANK_MAX ? '<span class="state">MAX</span>' : `<button class="buy" data-act="hrank" data-i="${i}" ${meta.medals >= helperRankCost(hh.rank) ? '' : 'disabled'}>${L('Rank', 'Kademe')} ${hh.rank + 1}<small>${helperRankCost(hh.rank)} ${CUR.medals.icon}</small></button>`) : ''}</div>`;
+    });
+    h += `</div><div class="sec"><h3>${L('Skills', 'Yetenekler')}</h3>`;
+    for (const sk of SKILLS) {
+      const lv = E.skill(sk.id);
+      h += `<div class="node"><div><div class="nm">${N(sk.name)} <small>${lv}/${sk.max}</small></div><div class="ds">${lv ? sk.desc(lv) : L('Not learned yet.', 'Henüz öğrenilmedi.') + ' ' + sk.desc(1)}</div></div>
+        ${lv >= sk.max ? '<span class="state">MAX</span>' : `<button class="buy" data-act="skill" data-v="${sk.id}" ${meta.medals >= skillCost(lv) ? '' : 'disabled'}>${lv ? L('Upgrade', 'Geliştir') : L('Learn', 'Öğren')}<small>${skillCost(lv)} ${CUR.medals.icon}</small></button>`}</div>`;
+    }
+    return h + `</div>`;
+  }
   function panelRes() {
     const S = E.get(), meta = S.meta, A = meta.res;
-    let h = `<div class="sec"><h3>Laboratuvar <span>${meta.bilgi} Bilgi · ${A.q.length}/${E.resSlots()} yuva</span></h3>`;
-    if (A.q.length) for (const q of A.q) {
-      const r = RESEARCH.find(x => x.id === q.id), left = q.end - meta.gt;
-      h += `<div class="card"><div class="nm"><b>${r.name} ${E.res(r.id) + 1}</b> araştırılıyor</div><div class="pbar"><i style="width:${((1 - left / q.dur) * 100).toFixed(1)}%"></i></div><p class="note">Kalan <b>${U.fmtTime(left)}</b> (oyun saati). Üstteki <b>Zamanı atla</b> ile ileri alabilirsin.</p></div>`;
-    } else h += `<p class="note">Laboratuvar boş. Bilgi; sandıklardan, hedeflerden ve turnuvalardan gelir. Araştırmalar kalıcıdır.</p>`;
+    let h = `<div class="sec"><h3>${L('Lab', 'Laboratuvar')} <span>${A.q.length}/${E.resSlots()} · ${cur('data', meta.data)} ${cur('shards', meta.shards)} ${cur('medals', meta.medals)}</span></h3>`;
+    if (A.q.length) for (const q of A.q) { const r = RESEARCH.find(x => x.id === q.id), left = q.end - meta.gt; h += `<div class="card"><b>${N(r.name)} ${E.res(r.id) + 1}</b><div class="pbar"><i style="width:${((1 - left / q.dur) * 100).toFixed(1)}%"></i></div><p class="note">${L('Time left', 'Kalan')} <b>${U.fmtTime(left)}</b></p></div>`; }
+    else h += `<p class="note">${L('The lab is empty. Data comes from every hole, daily rewards, achievements and tournaments.', 'Laboratuvar boş. Veri her delikten, günlük ödüllerden, başarımlardan ve turnuvalardan gelir.')}</p>`;
     h += `</div>`;
-    for (const br of [...new Set(RESEARCH.map(r => r.br))]) {
+    const brs = []; RESEARCH.forEach(r => { if (!brs.includes(N(r.br))) brs.push(N(r.br)); });
+    for (const br of brs) {
       h += `<div class="sec"><h3>${br}</h3>`;
-      for (const r of RESEARCH.filter(x => x.br === br)) {
-        const lv = E.res(r.id), st = E.resState(r);
+      for (const r of RESEARCH.filter(x => N(x.br) === br)) {
+        const lv = E.res(r.id), st = E.resState(r), c = r.cost(lv);
+        if (r.rar && st === 'locked' && r.req && !E.res(r.req) && E.resState(RESEARCH.find(x => x.id === r.req)) === 'locked') continue;
         const pips = r.max > 1 ? `<span class="pips">${Array.from({ length: Math.min(r.max, 15) }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('')}</span>` : '';
-        const btn = st === 'max' ? '<span class="state">Tamam</span>' : st === 'running' ? '<span class="state">Sürüyor</span>'
-          : `<button class="buy" data-act="research" data-v="${r.id}" ${A.q.length >= E.resSlots() || meta.bilgi < r.cost(lv) ? 'disabled' : ''}>${Math.round(r.cost(lv))} Bilgi<small>${U.fmtTime(r.dur(lv))}</small></button>`;
-        h += `<div class="node ${st === 'max' ? 'done' : ''}"><div><div class="nm">${r.name} <small>${lv}/${r.max}</small></div>${pips}<div class="ds">${r.desc(lv)}</div></div>${btn}</div>`;
+        const btn = st === 'max' ? `<span class="state">${L('Done', 'Tamam')}</span>` : st === 'running' ? `<span class="state">${L('Running', 'Sürüyor')}</span>` : st === 'locked' ? `<span class="state muted">${L('Locked', 'Kilitli')}</span>`
+          : `<button class="buy" data-act="research" data-v="${r.id}" ${A.q.length >= E.resSlots() || !E.canPay(c) ? 'disabled' : ''}>${costHtml(c)}<small>${U.fmtTime(r.dur(lv))}</small></button>`;
+        h += `<div class="node ${st === 'max' ? 'done' : ''}" ${r.rar ? `style="border-left:5px solid ${RARITY[r.rar].col}"` : ''}><div><div class="nm">${N(r.name)} <small>${lv}/${r.max}</small></div>${pips}<div class="ds">${r.desc(lv)}</div></div>${btn}</div>`;
       }
       h += `</div>`;
     }
     return h;
   }
-
-  // ---------- panel: ekipman ----------
   function panelGear() {
-    const S = E.get(), meta = S.meta, o = E.chestOdds(0);
-    let h = `<div class="sec"><h3>Sandıklar <span>${meta.chests.length}/${E.chestCap()}</span></h3>
-      <div class="btnrow"><button class="btn gold" data-act="chest1" ${meta.chests.length ? '' : 'disabled'}>Bir sandık aç</button><button class="btn" data-act="chestAll" ${meta.chests.length ? '' : 'disabled'}>Hepsini aç</button></div>
-      <div class="odds"><span style="flex:${o.item + o.legend}" class="r3">Ekipman %${Math.round((o.item + o.legend) * 100)}</span><span style="flex:${o.bilgi}" class="r2">Bilgi %${Math.round(o.bilgi * 100)}</span><span style="flex:${o.parts}" class="r1">Parça %${Math.round(o.parts * 100)}</span><span style="flex:${o.yards}" class="r0">Yarda %${Math.round(o.yards * 100)}</span></div>
-      <p class="note">Her delik bir sandık düşürür; birdie yapılan delikten İyi sandık çıkar. 20 sandıkta en az bir Nadir garanti (${meta.pity}/20). Kopya parça seviye yerine <b>parça</b> verir.</p></div>`;
-    h += `<div class="sec"><h3>Takılı ekipman <span>${meta.parts} parça · ×${E.mEquip().toFixed(2)} mesafe</span></h3><div class="eqgrid">`;
+    const S = E.get(), meta = S.meta, maxR = E.unlockedRarities();
+    const counts = [0, 0, 0, 0, 0]; meta.bags.forEach(t => counts[t]++);
+    let h = `<div class="sec"><h3>${N(CUR.bags)} <span>${meta.bags.length}/${E.bagCap()}</span></h3><div class="bags">${BAGS.map((b, t) => `<button class="bagbtn" style="--cc:${b.col}" data-act="bag" data-v="${t}" ${counts[t] ? '' : 'disabled'}><span class="bagicon2 small" style="--cc:${b.col}"><i></i><b></b></span><b>${N(b)}</b><small>×${counts[t]} · ${b.items} ${L('items', 'parça')}</small></button>`).join('')}</div>
+      <p class="note">${L('Bags come from daily rewards, every 6th hole, world completions, the daily hole, tournaments and achievements. Better bags roll higher rarities.', 'Çantalar günlük ödüllerden, her 6 delikte bir, dünya sonlarından, günlük delikten, turnuvalardan ve başarımlardan gelir. İyi çanta yüksek nadirlik çıkarır.')}</p></div>`;
+    const w = E.rarityWeights(0), tw = w.reduce((a, b) => a + b, 0), w2 = E.rarityWeights(2), tw2 = w2.reduce((a, b) => a + b, 0);
+    h += `<div class="sec"><h3>${L('Rarity odds per item', 'Parça başına nadirlik olasılığı')}</h3><div class="rtable">${RARITY.map((r, i) => `<div class="${i > maxR ? 'locked' : ''}" style="--rc:${r.col}"><b>${N(r)}</b><span>${i > maxR ? L('research', 'araştır') : (w[i] / tw * 100).toFixed(i > 4 ? 2 : 1) + '%'}</span><span>${i > maxR ? '' : (w2[i] / tw2 * 100).toFixed(i > 4 ? 2 : 1) + '%'}</span></div>`).join('')}</div>
+      <p class="note">${L('Columns: Bronze bag, Gold bag. Epic and higher must be researched first (Research → Rarity research).', 'Sütunlar: Bronz çanta, Altın çanta. Epik ve üstü önce araştırılmalı (Araştırma → Nadirlik araştırması).')}</p></div>`;
+    h += `<div class="sec"><h3>${L('Equipped', 'Takılı')} <span>${cur('shards', meta.shards)} · ${L('power', 'güç')} ×${E.gearSum().mult.toFixed(2)}</span></h3><div class="eqgrid">`;
     for (const slot in SLOTS) {
       const id = meta.equip.on[slot];
-      if (!id) { h += `<div class="eq"><div class="sl">${SLOTS[slot]}</div><div class="in" style="color:var(--muted)">Boş</div><div class="st">Sandıktan çıkar</div></div>`; continue; }
-      const it = E.itemById(id), lv = meta.equip.owned[id], m = E.lvlMul(lv), c = E.upgradeCost(id);
-      const ex = it.ex ? ` · ${EXTRA[it.ex].f(it.exv * m)} ${EXTRA[it.ex].name}` : '';
-      h += `<div class="eq ${RARITY[it.rar].cls}"><div class="sl"><span class="sw" style="background:${it.col}"></span>${SLOTS[slot]} · ${RARITY[it.rar].name} · sv ${lv}/10</div><div class="in">${it.name}</div>
-        <div class="st">+%${Math.round(it.dist * m * 100)} mesafe${ex}</div>
-        ${lv < 10 ? `<button class="btn mini-btn" data-act="upg" data-v="${id}" ${meta.parts >= c ? '' : 'disabled'}>Geliştir · ${c} parça</button>` : '<span class="state">Maks</span>'}</div>`;
+      if (!id) { h += `<div class="eq"><div class="sl">${N(SLOTS[slot])}</div><div class="in muted">${L('Empty', 'Boş')}</div></div>`; continue; }
+      const it = E.itemById(id), lv = meta.equip.owned[id], cap = levelCap(it), c = upgradeShards(it, lv);
+      h += `<div class="eq" style="--rc:${RARITY[it.rar].col}"><div class="sl">${N(SLOTS[slot])} · ${N(RARITY[it.rar])} · ${L('lv', 'sv')} ${lv}/${cap}</div><div class="in">${itemName(it)}</div><div class="st">${statText(it, lv)}</div>
+        ${lv < cap ? `<button class="btn mini-btn" data-act="upg" data-v="${id}" ${meta.shards >= c ? '' : 'disabled'}>${L('Upgrade', 'Geliştir')} · ${c} ◆</button>` : '<span class="state">MAX</span>'}</div>`;
     }
-    h += `</div><p class="note">Ekipman sopanın görünüşünü değiştirir ve turnuvada da işe yarar (sopa başı taşıma, şaft isabet, tutuş zemin, top yuvarlanma). Toplam çarpan softcap(Π, 5, 0.6).</p></div>`;
+    h += `</div></div>`;
     const owned = Object.keys(meta.equip.owned).length;
-    h += `<div class="sec"><h3>Koleksiyon albümü <span>${owned}/24</span></h3><div class="pbar"><i style="width:${owned / 24 * 100}%"></i></div><div class="album">`;
+    h += `<div class="sec"><h3>${L('Album', 'Albüm')} <span>${owned}/${ITEMS.length}</span></h3><div class="pbar"><i style="width:${owned / ITEMS.length * 100}%"></i></div><div class="album10">`;
     for (const slot in SLOTS) {
-      h += `<div class="lbl">${SLOTS[slot]}${E.albumDone(slot) ? ' ✓' : ''}</div>`;
+      h += `<div class="lbl">${N(SLOTS[slot])}</div>`;
       for (const it of ITEMS.filter(i => i.slot === slot)) {
         const lv = meta.equip.owned[it.id], fresh = lv && meta.equip.seen[it.id] === false;
-        h += lv ? `<button class="${RARITY[it.rar].cls} ${meta.equip.on[slot] === it.id ? 'on' : ''}" data-act="equip" data-v="${it.id}" title="${it.name}"><span class="sw" style="background:${it.col}"></span>${it.name}<br>sv ${lv}${fresh ? '<em>YENİ</em>' : ''}</button>`
-          : `<button class="miss ${RARITY[it.rar].cls}" disabled>?<br>${RARITY[it.rar].name}</button>`;
+        h += lv ? `<button class="${meta.equip.on[slot] === it.id ? 'on' : ''}" style="--rc:${RARITY[it.rar].col}" data-act="equip" data-v="${it.id}" title="${itemName(it)} · ${statText(it, lv)}"><span>${itemName(it)}</span><small>${L('lv', 'sv')} ${lv}</small>${fresh ? `<em>${L('NEW', 'YENİ')}</em>` : ''}</button>`
+          : `<button class="miss" style="--rc:${RARITY[it.rar].col}" disabled title="${N(RARITY[it.rar])}"><span>?</span><small>${N(RARITY[it.rar])}</small></button>`;
       }
     }
-    h += `</div><p class="note">Bir yuvanın 6 parçası tamamlanınca o yuva kalıcı +%5 verir. Parçaya tıkla: tak.</p></div>`;
-    return h;
+    return h + `</div><p class="note">${L('Click an item to equip it. Duplicates turn into shards; shards upgrade items.', 'Takmak için parçaya tıkla. Kopyalar parçaya (shard) dönüşür; parçalar ekipmanı geliştirir.')}</p></div>`;
   }
-
-  // ---------- panel: görünüm ----------
   function panelLook() {
     const S = E.get(), meta = S.meta, look = meta.looks[lookSel];
-    const who = [['p', 'Sen']].concat(S.run.hitters.map((_, i) => ['h' + i, 'Vurucu ' + (i + 1)]));
-    let h = `<div class="sec"><h3>Kimi giydiriyorsun?</h3><div class="opts">${who.map(([k, l]) => `<button class="pill ${k === lookSel ? 'on' : ''}" data-act="lookSel" data-v="${k}">${l}</button>`).join('')}</div>
+    const who = [['p', L('You', 'Sen')]].concat(S.run.hitters.map((_, i) => ['h' + i, L('Helper ', 'Yardımcı ') + (i + 1)]));
+    const wi = lookWorld < 0 ? E.worldOf(S.run.n) : lookWorld;
+    let h = `<div class="sec"><h3>${L('Who are you dressing?', 'Kimi giydiriyorsun?')}</h3><div class="opts">${who.map(([k, l]) => `<button class="pill ${k === lookSel ? 'on' : ''}" data-act="lookSel" data-v="${k}">${l}</button>`).join('')}</div>
+      <div class="opts">${WORLDS.map((w, i) => `<button class="pill small ${i === wi ? 'on' : ''}" data-act="lookWorld" data-v="${i}">${N(w.name)}</button>`).join('')}</div>
       <canvas id="lookPreview" class="lookprev"></canvas>
-      <p class="note">Sopanın kafa, şaft ve sap rengi takılı ekipmandan gelir; kaplama aşağıdan seçilir.</p></div>`;
-    const cats = [['skin', 'Ten'], ['shirt', 'Tişört'], ['pants', 'Pantolon'], ['hat', 'Şapka'], ['hatColor', 'Şapka rengi'], ['club', 'Sopa kaplaması']];
-    for (const [cat, label] of cats) {
-      h += `<div class="sec"><h3>${label}</h3><div class="swatches">`;
+      <label class="note"><input type="checkbox" data-act="worldOutfit" ${meta.worldOutfit ? 'checked' : ''}> ${L('Wear the world outfit automatically (space and heat suits are always on)', 'Dünya kıyafetini otomatik giy (uzay ve ısı giysisi her zaman giyilir)')}</label>
+      <p class="note">${WORLDS[wi].suit ? L('Outfit here: ', 'Buradaki kıyafet: ') + N(WORLD_OUTFIT[WORLDS[wi].suit]) : L('No special outfit in this world.', 'Bu dünyada özel kıyafet yok.')}</p></div>`;
+    for (const [cat, en, trn] of [['skin', 'Skin', 'Ten'], ['shirt', 'Shirt', 'Tişört'], ['pants', 'Pants', 'Pantolon'], ['hat', 'Hat', 'Şapka'], ['hatColor', 'Hat color', 'Şapka rengi'], ['club', 'Club finish', 'Sopa kaplaması']]) {
+      h += `<div class="sec"><h3>${L(en, trn)}</h3><div class="swatches">`;
       for (const [val, name, req] of LOOKS[cat]) {
         const ok = E.lookUnlocked(cat, val), on = look[cat] === val;
-        const isCol = /^#/.test(val), bg = isCol ? val : val === 'gold' ? 'linear-gradient(135deg,#fff1a8,#d9a521)' : val === 'argyle' ? 'repeating-linear-gradient(45deg,#2f64d6 0 6px,#f0c419 6px 9px)' : val === 'plaid' ? 'repeating-linear-gradient(0deg,#8a2b2b 0 5px,#e0c070 5px 7px)' : val === 'carbon' ? 'repeating-linear-gradient(45deg,#333 0 3px,#555 3px 6px)' : val === 'chrome' ? '#c9ced6' : val === 'black' ? '#2b2f36' : '#e8efe7';
-        h += `<button class="sw-btn ${on ? 'on' : ''}" data-act="look" data-cat="${cat}" data-v="${val}" ${ok ? '' : 'disabled'} title="${name}${ok ? '' : ' · kilitli: ' + UNLOCKS[req][0]}"><span style="background:${bg}"></span><small>${ok ? name : '🔒 ' + UNLOCKS[req][0]}</small></button>`;
+        const bg = /^#/.test(val) ? val : { gold: 'linear-gradient(135deg,#fff1a8,#d9a521)', argyle: 'repeating-linear-gradient(45deg,#2f64d6 0 6px,#f0c419 6px 9px)', plaid: 'repeating-linear-gradient(0deg,#8a2b2b 0 5px,#e0c070 5px 7px)', carbon: 'repeating-linear-gradient(45deg,#333 0 3px,#555 3px 6px)', chrome: '#c9ced6', black: '#2b2f36' }[val] || '#e8efe7';
+        h += `<button class="sw-btn ${on ? 'on' : ''}" data-act="look" data-cat="${cat}" data-v="${val}" ${ok ? '' : 'disabled'}><span style="background:${bg}"></span><small>${ok ? N(name) : '🔒 ' + N(UNLOCKS[req][0])}</small></button>`;
       }
       h += `</div></div>`;
     }
-    if (lookSel === 'p') {
-      h += `<div class="sec"><h3>Top izi (elle vuruş)</h3><div class="swatches">${LOOKS.trail.map(([val, name, req]) => {
-        const ok = E.lookUnlocked('trail', val);
-        const bg = { white: '#fff', gold: '#ffd75a', fire: 'linear-gradient(90deg,#ffb020,#e0301e)', rainbow: 'linear-gradient(90deg,red,orange,yellow,green,blue,violet)' }[val];
-        return `<button class="sw-btn ${meta.trail === val ? 'on' : ''}" data-act="trail" data-v="${val}" ${ok ? '' : 'disabled'}><span style="background:${bg}"></span><small>${ok ? name : '🔒 ' + UNLOCKS[req][0]}</small></button>`;
-      }).join('')}</div></div>`;
+    if (lookSel === 'p') h += `<div class="sec"><h3>${L('Ball trail', 'Top izi')}</h3><div class="swatches">${LOOKS.trail.map(([val, name, req]) => { const ok = E.lookUnlocked('trail', val); const bg = { white: '#fff', gold: '#ffd75a', fire: 'linear-gradient(90deg,#ffb020,#e0301e)', rainbow: 'linear-gradient(90deg,red,orange,yellow,green,blue,violet)' }[val]; return `<button class="sw-btn ${meta.trail === val ? 'on' : ''}" data-act="trail" data-v="${val}" ${ok ? '' : 'disabled'}><span style="background:${bg}"></span><small>${ok ? N(name) : '🔒 ' + N(UNLOCKS[req][0])}</small></button>`; }).join('')}</div></div>`;
+    return h;
+  }
+  function panelWorlds() {
+    const S = E.get(), meta = S.meta, run = S.run, wi = E.worldOf(run.n), first = wi * WORLD_HOLES + 1;
+    let nums = '', pars = '', scores = '', replays = '';
+    for (let n = first; n < first + WORLD_HOLES; n++) {
+      const b = meta.best[n], par = E.parOf(n), rel = b != null ? b - par : null, cls = rel == null ? '' : rel <= -2 ? 'eagle' : rel === -1 ? 'birdie' : rel === 0 ? '' : rel === 1 ? 'bogey' : 'dbl';
+      const gate = WORLDS[wi].gates.includes(n - first + 1);
+      nums += `<th class="${n === run.n ? 'cur' : ''} ${gate ? 'gate' : ''}">${n - first + 1}</th>`; pars += `<td>${par}</td>`;
+      scores += `<td class="${n === run.n ? 'cur' : ''}"><span class="sc ${cls}">${b != null ? b : n === run.n ? '·' : ''}</span></td>`;
+      if (n < run.n && (meta.stars[n] || 0) < 3) replays += `<button class="pill small" data-act="replay" data-v="${n}">${n - first + 1} · ${U.stars(meta.stars[n] || 0)}</button>`;
     }
+    let h = `<div class="sec"><h3>${N(WORLDS[wi].name)} · ${L('scorecard', 'skor kartı')} <span>${E.totalStars()} ★</span></h3>
+      <div class="card-scroll"><table class="scorecard"><tr><th>${L('Hole', 'Delik')}</th>${nums}</tr><tr><td>Par</td>${pars}</tr><tr><td>${L('Score', 'Skor')}</td>${scores}</tr></table></div>
+      <p class="note">${L('Highlighted holes are wind gates. Score = shots + bunker/water penalties + putts. Birdie ★★★, par ★★, bogey ★.', 'İşaretli delikler rüzgâr kapısıdır. Skor = vuruşlar + bunker/su cezası + putt. Birdie ★★★, par ★★, bogey ★.')}</p>
+      ${replays ? `<p class="note"><b>${L('Replay a putt to earn missing stars:', 'Eksik yıldız için putt\'u tekrar oyna:')}</b></p><div class="opts">${replays}</div>` : ''}</div>`;
+    h += `<div class="sec"><h3>${L('Worlds (map changes every 24 holes)', 'Dünyalar (harita her 24 delikte değişir)')}</h3><div class="worlds">`;
+    WORLDS.forEach((w, i) => {
+      const state = i < wi ? 'done' : i === wi ? 'cur' : E.totalStars() >= w.stars ? 'ready' : 'locked';
+      h += `<div class="world ${state}" style="--w1:${w.sky[0]};--w2:${w.grass[0]}"><div class="wbg"></div><div class="wtx"><b>${i + 1}. ${N(w.name)}</b><small>${N(w.desc)}</small>
+        <span>${w.stars} ★ · ${N(w.windName)} ${w.wind}–${w.wind + w.step * w.gates.length} km/h · ${L('terrain', 'zemin')} +${w.terrain}${w.heat < 1 ? ' · ' + L('heat', 'sıcak') + ' ×' + w.heat : ''}${w.gravity < 1 ? ' · ' + w.gravity + 'g' : ''}</span></div>
+        <em>${state === 'done' ? '🏆' : state === 'cur' ? L('HERE', 'BURADASIN') : state === 'ready' ? L('READY', 'HAZIR') : '🔒 ' + w.stars + '★'}</em></div>`;
+    });
+    return h + `</div></div>`;
+  }
+  function panelCompete() {
+    const S = E.get(), meta = S.meta, dh = Tour.dailyHole(meta.daily.day), G = E.tourG(), lg = E.league(G), open = S.run.n > 9;
+    const ready = E.dailyReady(), idx = meta.rewards.idx % DAILY.length;
+    let h = `<div class="sec"><h3>${L('Daily rewards', 'Günlük ödüller')} <span>${L('missing a day loses nothing', 'gün kaçırınca bir şey kaybolmaz')}</span></h3><div class="daily">${DAILY.map((d, i) => `<div class="${i < idx ? 'got' : i === idx ? 'next' : ''}"><b>${L('Day', 'Gün')} ${i + 1}</b><small>${E.rewardText(d)}</small></div>`).join('')}</div>
+      <button class="btn gold" data-act="claimDaily" ${ready ? '' : 'disabled'}>${ready ? L('Claim today\'s reward', 'Bugünün ödülünü al') : L('Come back tomorrow (game day)', 'Yarın gel (oyun günü)')}</button></div>`;
+    h += `<div class="sec"><h3>${L('Daily hole', 'Günlük delik')} <span>${L('hard', 'zor')}</span></h3><div class="card"><p class="note"><b>Par ${dh.par} · ${dh.len} yd · ${dh.wind.kmh} km/h</b> · ${L('try', 'deneme')} ${meta.daily.tries}/3 · ${L('best', 'en iyi')} <b>${meta.daily.best == null ? '—' : fmtRel(meta.daily.best)}</b></p>
+      <p class="note">${L('Everyone plays the same hole today. You see your rank among 2,000 players and get a bag by rank.', 'Bugün herkes aynı deliği oynar. 2 000 oyuncu içindeki sıranı görür, sıraya göre çanta alırsın.')}</p>
+      <button class="btn primary" data-act="daily" ${meta.daily.tries >= 3 ? 'disabled' : ''}>${L('Play the daily hole', 'Günlük deliği oyna')}</button></div></div>`;
+    h += `<div class="sec"><h3>${L('Weekly tournament', 'Haftalık turnuva')} <span>9 ${L('holes', 'delik')}</span></h3><div class="card"><p class="note">${L('League', 'Lig')} <b>${lg.name}</b> · G ${Math.round(G)} · ${L('round', 'tur')} ${meta.tour.tries}/3 · ${L('best', 'en iyi')} <b>${meta.tour.best == null ? '—' : fmtRel(meta.tour.best)}</b></p>
+      <button class="btn gold" data-act="tour" ${!open || meta.tour.tries >= 3 ? 'disabled' : ''}>${open ? L('Play a tournament round', 'Turnuva turu oyna') : L('Opens after hole 9', 'Delik 9\'dan sonra açılır')}</button>
+      <button class="btn" data-act="practice">${L('Practice range', 'Antrenman sahası')}</button></div></div>`;
     return h;
   }
-
-  // ---------- panel: turnuva ----------
-  function panelTour() {
-    const S = E.get(), meta = S.meta;
-    const dh = Tour.dailyHole(meta.daily.day);
-    const G = E.tourG(), lg = E.league(G), open = S.run.n > 9;
-    const best = v => v == null ? '—' : fmtRel(v);
-    const wd = Math.max(0, 7 - (E.dayIndex() % 7));
-    let h = `<div class="sec"><h3>Günlük delik <span>zor</span></h3><div class="card tourcard">
-      <div class="tc-top"><div><b>Par ${dh.par}</b> · ${dh.len} yd · rüzgâr ${dh.wind.kmh} km/s</div><div>Deneme ${meta.daily.tries}/3 · en iyi <b>${best(meta.daily.best)}</b></div></div>
-      <p class="note">Bugün herkes aynı deliği oynar: dar fairway, çok bunker, sık su ve hızlı yeşil. Sonuçta 2 000 oyuncu içindeki yerini ve skor dağılımını görürsün. Ödül sıralamaya göre sandık.</p>
-      <div class="btnrow"><button class="btn primary" data-act="daily" ${meta.daily.tries >= 3 ? 'disabled' : ''}>Günlük deliği oyna</button></div></div></div>`;
-    h += `<div class="sec"><h3>Haftalık turnuva <span>9 delik · zor · ${wd} gün kaldı</span></h3><div class="card tourcard">
-      <div class="tc-top"><div>Lig <b>${lg.name}</b> · G ${Math.round(G)}</div><div>Tur ${meta.tour.tries}/3 · en iyi <b>${best(meta.tour.best)}</b></div></div>
-      <p class="note">Haftada 3 tur, en iyisi sayılır. 50 kişilik grupta sıralanırsın. İlk %10 rozet (+%1 kariyer mesafesi), Bilgi ve parça kazanır; ilk %25 ve %10 kostüm açar.</p>
-      <div class="btnrow"><button class="btn gold" data-act="tour" ${!open || meta.tour.tries >= 3 ? 'disabled' : ''}>${open ? 'Turnuva turu oyna' : 'Delik 9 bitince açılır'}</button></div></div></div>`;
-    h += `<div class="sec"><h3>Antrenman</h3><div class="card"><p class="note">Normal zorlukta rastgele bir delik. Ödül yok, hak harcamaz. Sopaları ve rüzgârı denemek için.</p><button class="btn" data-act="practice">Antrenman sahası</button></div></div>`;
-    h += `<div class="sec"><h3>Bu mod nasıl çalışır?</h3><div class="card"><ul class="plain">
-      <li><b>Par:</b> o deliğin beklenen vuruş sayısı. Par 4 = 2 vuruşta yeşile + 2 putt. Parın 1 altı birdie, 1 üstü bogey.</li>
-      <li><b>Taşıma (carry):</b> topun tam vuruşta havada gittiği mesafe. Hedefi daha yakına sürüklersen yarım vuruş yaparsın. Uzun sopa daha çok sapar.</li>
-      <li><b>Zemin:</b> rough mesafeyi ×0.85, bunker ×0.6 yapar ve sapmayı artırır. Driver yalnızca tee'den, wood bunkerden vurulamaz.</li>
-      <li><b>Rüzgâr:</b> arka rüzgâr uzatır, yan rüzgâr topu sürükler; her vuruşta ±%20 esinti.</li>
-      <li><b>Şans:</b> her vuruşta bir sapma zarı atılır. Mükemmel vuruş sapmayı ×0.3'e, ıska ×2.5'e çeker.</li>
-      <li><b>Güç (G):</b> kariyerden gelir (yıldız, kupa, ekipman) ve doygun eğriyle küçük bir avantaj verir.</li></ul></div></div>`;
+  function panelAwards() {
+    const S = E.get(), meta = S.meta, n = E.achCount();
+    let h = `<div class="sec"><h3>${L('Achievements', 'Başarımlar')} <span>${n}/${ACH.length} · ${L('bonus', 'bonus')} +${Math.min(10, Math.floor(n / 10))}%</span></h3><p class="note">${L('Every 10 achievements give +1% distance (max +10%). Rewards are paid automatically.', 'Her 10 başarım +%1 mesafe verir (en fazla +%10). Ödüller otomatik verilir.')}</p><div class="achs">`;
+    for (const a of ACH) { const done = !!meta.ach[a.id]; h += `<div class="ach ${done ? 'done' : ''}"><b>${done ? '🏆' : '·'}</b><div><span>${N(a.name)}</span><small>${E.rewardText(a.reward)}</small></div></div>`; }
+    return h + `</div></div>`;
+  }
+  function panelDev() {
+    const S = E.get(), run = S.run;
+    let h = `<div class="sec"><h3>${L('Distance per helper swing', 'Yardımcı vuruşu başına mesafe')}</h3><div class="kv">
+      <span>${L('Power base', 'Güç tabanı')}</span><b>${U.fmt(E.powerBase())}</b><span>${L('Lie', 'Zemin')} (${N(TERRAIN[E.curLie()])})</span><b>×${E.lieMult().toFixed(2)}</b>
+      <span>${L('Ball', 'Top')}</span><b>×${E.ballMult(run.up.ball).toFixed(2)}</b><span>${L('Hole multiplier', 'Delik çarpanı')}</span><b>×${U.fmt(E.holeMult())}</b>
+      <span>${L('Wind', 'Rüzgâr')}</span><b>×${E.windMul().toFixed(2)}</b>${E.metaParts().map(([k, v]) => `<span>${k}</span><b>×${v.toFixed(2)}</b>`).join('')}
+      <span><b>=</b></span><b>${U.fmt(E.swingDist())} yd</b><span>${L('Auto income', 'Otomatik gelir')}</span><b>${U.fmt(E.autoIncome())}/s</b></div></div>`;
+    const P = [['tauMan', 'τ_man'], ['manualPower', L('Manual power', 'Elle güç')], ['holeGrowth2', L('Hole growth after 18', '18 sonrası delik büyümesi')], ['trophyMult', L('World trophy', 'Dünya kupası')], ['autoPutts', L('Auto putts', 'Otomatik putt')], ['offlineEff', L('Offline efficiency', 'Çevrimdışı verim')], ['goldMin', L('Golden ball min (s)', 'Altın top en erken (sn)')]];
+    h += `<div class="sec"><h3>${L('Tuning', 'Ayar')}</h3><div class="tune">${P.map(([k, l]) => `<label for="cfg-${k}">${l}</label><input id="cfg-${k}" type="number" step="any" data-cfg="${k}" value="${CFG[k]}">`).join('')}</div></div>`;
+    h += `<div class="sec"><h3>${L('Test tools', 'Test araçları')}</h3><label class="note"><input type="checkbox" data-act="autoAll" ${S.settings.autoAll ? 'checked' : ''}> ${L('Auto-buy upgrades while playing', 'Oynarken yükseltmeleri otomatik al')}</label>
+      <div class="btnrow"><button class="btn" data-act="gold">${L('Golden ball', 'Altın top')}</button><button class="btn" data-act="cash">+100 D/◆/M</button><button class="btn" data-act="bags5">+5 ${L('bags', 'çanta')}</button><button class="btn" data-act="stars">+20 ★</button><button class="btn danger" data-act="reset">${L('Reset save', 'Kaydı sıfırla')}</button></div>
+      <p class="note">${L('Jump to a world (sets a plausible build):', 'Bir dünyaya atla (makul bir seviye kurar):')}</p><div class="opts">${WORLDS.map((w, i) => `<button class="pill small" data-act="tele" data-v="${i}">${i + 1}. ${N(w.name)}</button>`).join('')}</div></div>`;
     return h;
   }
-
-  // ---------- panel: kariyer ----------
-  function panelCareer() {
-    const S = E.get(), meta = S.meta, run = S.run, c = E.courseOf(run.n), first = (c - 1) * 18 + 1;
-    let pars = '', bests = '', nums = '';
-    for (let n = first; n < first + 18; n++) {
-      const b = meta.best[n], par = E.parOf(n), rel = b != null ? b - par : null;
-      const cls = rel == null ? '' : rel <= -2 ? 'eagle' : rel === -1 ? 'birdie' : rel === 0 ? '' : rel === 1 ? 'bogey' : 'dbl';
-      nums += `<th class="${n === run.n ? 'cur' : ''}">${n - first + 1}</th>`; pars += `<td>${par}</td>`;
-      bests += `<td class="${n === run.n ? 'cur' : ''}"><span class="sc ${cls}">${b != null ? b : n === run.n ? '·' : ''}</span></td>`;
-    }
-    let h = `<div class="sec"><h3>Skor kartı · Kurs ${c} ${E.courseName(c)}</h3><div class="card-scroll"><table class="scorecard"><tr><th>Delik</th>${nums}</tr><tr><td>Par</td>${pars}</tr><tr><td>Skor</td>${bests}</tr></table></div>
-      <p class="note">Delik skorun = vuruş bölümleri + bunker/su cezası + putt sayısı. Birdie ★★★, par ★★, bogey ★. Her yıldız kalıcı +%1 mesafe.</p></div>`;
-    h += `<div class="sec"><h3>Kupalar <span>×${E.mTrophy().toFixed(0)}</span></h3><div class="trophies">`;
-    for (let k = 1; k <= Math.max(4, c); k++) h += `<div class="${k < c ? 'won' : k === c ? 'cur' : ''}"><b>${k < c ? '🏆' : k === c ? '⛳' : '·'}</b><span>Kurs ${k}</span><small>${E.courseName(k)}</small></div>`;
-    h += `</div><p class="note">Sezon ve sıfırlama yok. Her biten kurs kalıcı ×${CFG.trophyMult} verir ve yeni bir saha açar. Kurs 1 sonrası delikler daha yavaş uzar (×${CFG.holeGrowth2}/delik).</p></div>`;
-    h += `<div class="sec"><h3>Mesafe çarpanları</h3><div class="kv">${E.metaParts().map(([k, v]) => `<span>${k}</span><b>×${v.toFixed(2)}</b>`).join('')}<span>Delik çarpanı 1.08^(n−1)</span><b>×${U.fmt(E.holeMult())}</b></div></div>`;
-    h += `<div class="sec"><h3>İstatistik</h3><div class="kv">
-      <span>Elle vuruş</span><b>${meta.stats.swings} (%${meta.stats.swings ? Math.round(meta.stats.perfects / meta.stats.swings * 100) : 0} mükemmel)</b>
-      <span>Biten delik</span><b>${meta.stats.holes}</b><span>Birdie</span><b>${meta.stats.birdies}</b><span>Power Drive</span><b>${meta.stats.pds}</b>
-      <span>En iyi vuruş</span><b>${U.fmt(meta.stats.bestSwing)} yd</b><span>Oynama</span><b>${U.fmtTime(meta.stats.playS)}</b></div></div>`;
-    return h;
-  }
-
-  // ---------- panel: denge ----------
-  function panelTune() {
-    const S = E.get(), run = S.run, p = E.pPerfect(), lie = E.curLie();
-    let h = `<div class="sec"><h3>Vuruş başına mesafe (otomatik)</h3><div class="kv">
-      <span>Taban (5 + 2·Sopa Başı) × eşik</span><b>${U.fmt((5 + 2 * run.up.head) * E.msMult(run.up.head))}</b>
-      <span>Zemin (${TERRAIN[lie].name})</span><b>×${E.lieMult().toFixed(2)}</b>
-      <span>Top</span><b>×${E.ballMult(run.up.ball).toFixed(2)}</b>
-      <span>Delik çarpanı</span><b>×${U.fmt(E.holeMult())}</b>
-      <span>Kritik 1 + p·1.5 (p=%${(p * 100).toFixed(0)})</span><b>×${(1 + p * 1.5).toFixed(2)}</b>
-      <span>Rüzgâr (oto)</span><b>×${E.windMul(true).toFixed(2)}</b>
-      ${E.metaParts().map(([k, v]) => `<span>${k}</span><b>×${v.toFixed(2)}</b>`).join('')}
-      <span><b style="text-align:left">= vuruş başına</b></span><b>${U.fmt(E.autoDist())} yd</b>
-      <span>× vuruş/sn</span><b>${E.autoRate().toFixed(1)}</b>
-      <span><b style="text-align:left">= otomatik gelir</b></span><b>${U.fmt(E.autoIncome())}/sn</b></div></div>`;
-    const mv = E.manualValue(CFG.perfectMult, E.streakMult());
-    h += `<div class="sec"><h3>Elle vuruş</h3><div class="kv"><span>Mükemmel vuruş</span><b>${U.fmt(mv)} yd</b><span>= oto gelirin</span><b>${(mv / Math.max(1e-9, E.autoIncome())).toFixed(1)} sn</b><span>Power Drive (mükemmel)</span><b>${U.fmt(E.tPD() * E.autoIncome() * CFG.perfectMult)} yd</b></div></div>`;
-    const P = [['tauMan', 'τ_man: elle vuruş tabanı (sn)'], ['tPD', 'T_PD: Power Drive (sn gelir)'], ['manualPower', 'Elle vuruş gücü'], ['holeGrowth', 'Kurs 1 delik büyümesi'], ['holeGrowth2', 'Sonraki delik büyümesi'], ['trophyMult', 'Kupa çarpanı'], ['offlineEff', 'Çevrimdışı verim'], ['goldMin', 'Altın top en erken (sn)'], ['goldMax', 'Altın top en geç (sn)'], ['greenGrace', 'Putt bekleme (sn)']];
-    h += `<div class="sec"><h3>Test edilecek varsayımlar</h3><div class="tune">${P.map(([k, l]) => `<label for="cfg-${k}">${l}</label><input id="cfg-${k}" type="number" step="any" data-cfg="${k}" value="${CFG[k]}">`).join('')}</div></div>`;
-    h += `<div class="sec"><h3>Test araçları</h3>
-      <label class="note"><input type="checkbox" data-act="autoAll" ${S.settings.autoAll ? 'checked' : ''}> Açık oyunda yükseltmeleri otomatik al</label>
-      <div class="btnrow"><button class="btn" data-act="gold">Altın top</button><button class="btn" data-act="bilgi">+50 Bilgi</button><button class="btn" data-act="parts">+100 parça</button><button class="btn" data-act="chests">+5 sandık</button><button class="btn danger" data-act="reset">Kaydı sıfırla</button></div></div>`;
-    return h;
-  }
-
-  const PANELS = { up: panelUp, res: panelRes, gear: panelGear, look: panelLook, tour: panelTour, career: panelCareer, tune: panelTune };
+  const PANELS = { up: panelUp, team: panelTeam, res: panelRes, gear: panelGear, look: panelLook, worlds: panelWorlds, compete: panelCompete, awards: panelAwards, dev: panelDev };
   function renderPanel(force) {
     const html = PANELS[tab](), body = $('tabBody');
     if (!force && html === lastPanel) return;
     if (!force && body.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
     const sc = body.scrollTop; body.innerHTML = html; lastPanel = html; body.scrollTop = sc;
-    drawMinis();
-  }
-  function drawMinis() {
     document.querySelectorAll('canvas.mini[data-look]').forEach(cv => {
-      const look = E.get().meta.looks[cv.dataset.look], ctx = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
-      cv.width = 34 * dpr; cv.height = 40 * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      Art.golfer(ctx, 15, 38, 0.52, look, -1);
+      const k = cv.dataset.look, big = cv.classList.contains('big'), ctx = cv.getContext('2d'), dpr = window.devicePixelRatio || 1, w = big ? 60 : 34, h = big ? 72 : 40;
+      cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      Art.golfer(ctx, w * 0.44, h - 2, big ? 0.95 : 0.52, Art.dress(E.get().meta.looks[k], E.world(), E.get().meta.worldOutfit), -1);
     });
   }
   function setTab(t) {
     tab = t;
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-    if (t === 'gear') setTimeout(() => { const m = E.get().meta.equip.seen; for (const k in m) m[k] = true; }, 2500);
+    if (t === 'gear') setTimeout(() => { const m = E.get().meta.equip.seen; for (const k in m) m[k] = true; }, 3000);
     renderPanel(true); $('tabBody').scrollTop = 0;
   }
   let resetArm = 0;
@@ -370,182 +377,166 @@ const UI = (() => {
       case 'buy': E.buy(btn.dataset.key, S.settings.buyAmt); break;
       case 'amt': S.settings.buyAmt = v === 'max' ? 'max' : +v; break;
       case 'tab': setTab(v); return;
-      case 'chest1': openOneChest(); break;
-      case 'chestAll': openAllChests(); break;
+      case 'bag': openBagUI(+v); break;
       case 'equip': E.equip(v); break;
-      case 'upg': if (E.upgradeItem(v)) toast('Ekipman geliştirildi', 'blue'); break;
-      case 'research': if (E.startResearch(v)) toast('Araştırma başladı', 'blue'); break;
+      case 'upg': if (E.upgradeItem(v)) toast(L('Item upgraded', 'Ekipman geliştirildi'), 'blue'); break;
+      case 'research': if (E.startResearch(v)) toast(L('Research started', 'Araştırma başladı'), 'blue'); break;
+      case 'htype': if (!E.setHelperType(+btn.dataset.i, v)) toast(L(`Switching needs ${HELPER_SWITCH_COST} Medals`, `Değiştirmek için ${HELPER_SWITCH_COST} Madalya gerekir`), 'red'); else Stage.sync(); break;
+      case 'hrank': E.rankHelper(+btn.dataset.i); break;
+      case 'skill': E.upgradeSkill(v); break;
       case 'lookSel': lookSel = v; break;
-      case 'look': S.meta.looks[lookSel][btn.dataset.cat] = v; Scene.resize(); break;
+      case 'lookWorld': lookWorld = +v; break;
+      case 'look': S.meta.looks[lookSel][btn.dataset.cat] = v; break;
+      case 'worldOutfit': S.meta.worldOutfit = btn.checked; break;
       case 'trail': S.meta.trail = v; break;
+      case 'replay': openReplay(+v); break;
+      case 'claimDaily': { const rw = E.claimDaily(); if (rw) { toast(L('Daily reward: ', 'Günlük ödül: ') + E.rewardText(rw), 'gold'); ping('sBagBtn'); } break; }
       case 'daily': Tour.start('daily'); break;
       case 'practice': Tour.start('practice'); break;
       case 'tour': Tour.start('tour'); break;
-      case 'goal': { const rw = E.claimGoal(); if (rw) { toast('Hedef ödülü: ' + E.rewardText(rw), 'gold'); if (rw.chest) ping('sChestBtn'); } break; }
-      case 'gold': Scene.spawnGoldNow(); break;
-      case 'bilgi': S.meta.bilgi += 50; break;
-      case 'parts': S.meta.parts += 100; break;
-      case 'chests': for (let i = 0; i < 5; i++) E.addChest({ tier: 1, n: S.run.n }); break;
+      case 'gold': Stage.spawnGold(); break;
+      case 'cash': S.meta.data += 100; S.meta.shards += 100; S.meta.medals += 100; break;
+      case 'bags5': [0, 1, 2, 3, 4].forEach(t => E.addBag(t)); break;
+      case 'stars': for (let n = 1, k = 0; k < 20 && n < S.run.n; n++) if ((S.meta.stars[n] || 0) < 3) { S.meta.stars[n] = (S.meta.stars[n] || 0) + 1; k++; } E.checkWorldLock(); break;
+      case 'tele': E.teleport(+v); viewA.resize(); viewB.resize(); break;
       case 'autoAll': S.settings.autoAll = btn.checked; break;
       case 'reset':
-        if (Date.now() - resetArm < 4000) { try { localStorage.removeItem(KEY); } catch (e) { } E.fresh(); Scene.resize(); resetArm = 0; toast('Kayıt sıfırlandı', 'red'); }
-        else { resetArm = Date.now(); toast('Sıfırlamak için 4 sn içinde tekrar bas', 'red'); return; }
+        if (Date.now() - resetArm < 4000) { try { localStorage.removeItem(KEY); } catch (e) { } const lang = S.settings.lang; E.fresh(); E.get().settings.lang = lang; Stage.sync(); setView('side'); resetArm = 0; toast(L('Save reset', 'Kayıt sıfırlandı'), 'red'); }
+        else { resetArm = Date.now(); toast(L('Press again within 4 s to reset', 'Sıfırlamak için 4 sn içinde tekrar bas'), 'red'); return; }
         break;
     }
-    renderPanel(true); renderGoals(true);
+    renderPanel(true);
   }
-  function refreshAll() { renderPanel(true); renderGoals(true); }
-
-  // ---------- hedefler ve kurs şeridi ----------
-  let lastGoals = '';
-  function renderGoals(force) {
-    const gs = E.goalState();
-    const html = gs.length ? gs.map((g, i) => `<div class="goal ${g.done ? 'done' : ''} ${i ? 'later' : ''}"><div><b>${g.text}</b><small>Ödül: ${E.rewardText(g.reward)}</small></div>${i === 0 ? (g.done ? '<button class="btn gold mini-btn" data-act="goal">Al</button>' : '<span class="state">Sıradaki</span>') : ''}</div>`).join('') : '<p class="note">Tüm hedefler tamam.</p>';
-    if (!force && html === lastGoals) return;
-    lastGoals = html; $('goals').innerHTML = html;
-  }
-  function courseStrip() {
-    const S = E.get(), run = S.run, c = E.courseOf(run.n), first = (c - 1) * 18 + 1;
-    let s = '';
-    for (let n = first; n < first + 18; n++) {
-      const st = S.meta.stars[n];
-      s += `<div class="${n === run.n ? 'cur' : n < run.n ? 'past' : ''}"><span>${n - first + 1}</span><b>${n < run.n ? '★'.repeat(st || 0) + '<i>' + '★'.repeat(3 - (st || 0)) + '</i>' : E.parOf(n)}</b></div>`;
-    }
-    return s;
-  }
+  function refreshAll() { renderPanel(true); }
 
   // ---------- HUD ----------
   function hud() {
-    const S = E.get(), run = S.run, meta = S.meta, rates = shareRates();
+    const S = E.get(), run = S.run, meta = S.meta, rates = shareRates(), w = E.world();
     const inc = Math.max(E.autoIncome(), rates.total);
-    $('sYards').textContent = U.fmt(run.yards); $('sIncome').textContent = U.fmt(inc);
-    $('sStars').textContent = E.totalStars(); $('sBilgi').textContent = meta.bilgi; $('sParts').textContent = meta.parts; $('sChests').textContent = meta.chests.length;
-    $('clock').textContent = `Gün ${E.dayIndex() - Math.floor(meta.epoch / 86400) + 1} · ${U.fmtClock(meta.gt)}`;
-    const c = E.courseOf(run.n);
-    $('courseName').textContent = `Kurs ${c} · ${E.courseName(c)}`;
-    const len = E.holeLen(run.n), par = E.parOf(run.n), lie = E.curLie(), S2 = E.segCount(run.n);
-    $('holeTitle').innerHTML = `Delik <em>${E.holeIn(run.n)}</em>/18 · Par ${par}`;
-    $('holeMeta').innerHTML = `Vuruş <b>${run.shot.strokes}</b> · ${E.greenPhase() ? 'yeşilde' : `${Math.min(run.shot.k + 1, S2)}. vuruş (${S2}'de yeşile)`} · ${U.fmt(len)} yd`;
-    const strip = courseStrip(); if ($('courseStrip').dataset.h !== strip) { $('courseStrip').innerHTML = strip; $('courseStrip').dataset.h = strip; }
+    $('sYards').textContent = U.fmt(run.yards); $('sIncome').textContent = U.fmt(inc); $('sStars').textContent = E.totalStars();
+    $('sData').textContent = U.fmt(meta.data); $('sShards').textContent = U.fmt(meta.shards); $('sMedals').textContent = U.fmt(meta.medals); $('sBags').textContent = meta.bags.length;
+    $('clock').textContent = `${L('Day', 'Gün')} ${E.dayIndex() - Math.floor(meta.epoch / 86400) + 1} · ${U.fmtClock(meta.gt)}`;
+    $('worldName').textContent = `${L('World', 'Dünya')} ${E.worldOf(run.n) + 1} · ${N(w.name)}`;
+    const len = E.holeLen(run.n), par = E.parOf(run.n), S2 = E.segCount(run.n);
+    $('holeTitle').innerHTML = `${L('Hole', 'Delik')} <em>${E.holeIn(run.n)}</em>/24 · Par ${par}${E.gateIdx() >= 0 ? ` <span class="gatetag">${L('WIND GATE', 'RÜZGÂR KAPISI')}</span>` : ''}`;
+    $('holeMeta').innerHTML = `${L('Strokes', 'Vuruş')} <b>${run.shot.strokes}</b> · ${E.greenPhase() ? L('on the green', 'yeşilde') : L(`shot ${Math.min(run.shot.k + 1, S2)} of ${S2} to the green`, `yeşile ${S2} vuruştan ${Math.min(run.shot.k + 1, S2)}.`)} · ${U.fmt(len)} yd · #${run.n}`;
+    let strip = ''; const first = E.worldOf(run.n) * WORLD_HOLES + 1;
+    for (let n = first; n < first + WORLD_HOLES; n++) { const st = meta.stars[n], gate = w.gates.includes(n - first + 1); strip += `<div class="${n === run.n ? 'cur' : n < run.n ? 'past' : ''} ${gate ? 'gate' : ''}"><span>${n - first + 1}</span><b>${n < run.n ? '★'.repeat(st || 0) + '<i>' + '★'.repeat(3 - (st || 0)) + '</i>' : E.parOf(n)}</b></div>`; }
+    if ($('courseStrip').dataset.h !== strip) { $('courseStrip').innerHTML = strip; $('courseStrip').dataset.h = strip; }
     const p = Math.min(1, run.prog / len);
     $('pfill').style.width = (p * 100).toFixed(2) + '%';
     let marks = ''; for (let k = 1; k < S2; k++) marks += `<i style="left:${(90 * k / S2).toFixed(1)}%"></i>`;
     if ($('pmarks').dataset.h !== marks) { $('pmarks').innerHTML = marks; $('pmarks').dataset.h = marks; }
     $('pText').textContent = `${U.fmt(run.prog)} / ${U.fmt(len)} yd`;
-    $('pEta').textContent = E.greenPhase() ? (run.prog >= len ? `Yeşilde bekliyor · ${Math.max(0, Math.ceil(CFG.greenGrace - run.greenWait))} sn sonra 3 putt sayılır` : 'Yeşil fazı: putt oyna') : `Sonraki vuruşa ~${U.fmtTime((E.segBoundary(run.shot.k + 1) - run.prog) / Math.max(1e-9, inc) / Math.max(1, speed))}`;
-    const tm = E.terrainMult(lie), o = E.landingOdds();
-    $('lieV').innerHTML = `<span class="${tm < 0.95 ? 'bad' : 'good'}">${TERRAIN[lie].name} ×${tm.toFixed(2)}</span>`;
-    $('lieOdds').innerHTML = ['fairway', 'rough', 'bunker', 'water'].filter(k => o[k] > 0).map(k => `<i style="flex:${o[k]};background:${TERRAIN[k].col}" title="${TERRAIN[k].name} %${Math.round(o[k] * 100)}">${o[k] > 0.08 ? TERRAIN[k].name + ' %' + Math.round(o[k] * 100) : ''}</i>`).join('');
-    if (E.windActive()) {
-      const w = E.wind();
-      $('windV').textContent = { calm: 'Durgun ×1.0', head: `Karşı ×${E.windMul(false).toFixed(2)} · rough +%8`, tail: 'Arka ×1.4 · PD ×1.5' }[w.kind];
-      let s = '';
-      for (let i = 0; i < 5; i++) { const ww = E.windAt(meta.gt + i * 45), t = i === 0 ? 'şimdi' : '+' + Math.round(i * 45 - (meta.gt % 45)) + 's'; s += `<div class="${ww.kind} ${i === 0 ? 'now' : ''}">${{ calm: '—', head: '←', tail: '→' }[ww.kind]} ${t}</div>`; }
-      $('windStrip').innerHTML = s;
-    } else { $('windV').textContent = 'Yok'; $('windStrip').innerHTML = `<div>Delik 9 bitince açılır</div>`; }
-    const cols = { auto: '#3f9a52', man: '#3a6ee8', pd: '#ff8a3d', gold: '#d9a521', chest: '#8d4fd1' }, names = { auto: 'Otomatik', man: 'Elle', pd: 'Power Drive', gold: 'Altın top', chest: 'Sandık' }, tot = rates.total || 1;
+    // requirement line
+    const wind = E.wind(), wc = E.windControl(), blocked = E.gateBlocked();
+    let req;
+    if (run.locked) req = `<b class="bad">${L('World locked', 'Dünya kilitli')}:</b> ${L(`need ${w.stars} ★, you have ${E.totalStars()} ★. Replay putts in the Worlds tab.`, `${w.stars} ★ gerekli, sende ${E.totalStars()} ★. Dünyalar sekmesinde putt tekrar oyna.`)} <button class="btn mini-btn" data-go="worlds">${L('Worlds', 'Dünyalar')}</button>`;
+    else if (blocked) req = `<b class="bad">${L('Wind gate', 'Rüzgâr kapısı')}:</b> ${N(w.windName)} ${E.holeWind()} km/h · ${L('your wind control', 'rüzgâr kontrolün')} ${wc}. ${L('Raise Accuracy, research Wind reading, hire Accurate helpers or equip grips/balls.', 'İsabeti artır, Rüzgâr okuma araştır, İsabetli yardımcı tut ya da sap/top tak.')} <button class="btn mini-btn" data-go="team">${L('Team', 'Takım')}</button>`;
+    else req = `${N(w.windName)} <b>${wind.kmh} km/h</b> (${{ calm: L('calm', 'sakin'), head: L('headwind', 'karşıdan'), tail: L('tailwind', 'arkadan') }[wind.kind]}) · ${L('wind control', 'rüzgâr kontrolü')} <b class="${wc >= wind.kmh ? 'good' : 'bad'}">${wc}</b> → ×${E.windMul().toFixed(2)}${E.shieldOn() ? ' · ' + L('shield on', 'kalkan açık') : ''}${E.heatF() < 1 ? ` · ${L('heat', 'sıcak')} ×${E.heatF().toFixed(2)}` : ''}`;
+    if ($('reqLine').dataset.h !== req) { $('reqLine').innerHTML = req; $('reqLine').dataset.h = req; $('reqLine').className = 'reqline' + (blocked || run.locked ? ' alert' : ''); }
+    if (blocked && !wasBlocked) Stage.banner(L('WIND GATE', 'RÜZGÂR KAPISI'), L(`${E.holeWind()} km/h · you have ${wc} wind control`, `${E.holeWind()} km/s · rüzgâr kontrolün ${wc}`), '#ff9a8a', 3);
+    wasBlocked = blocked;
+    $('pEta').textContent = run.locked ? '' : blocked ? L('Blocked by the wind', 'Rüzgâr geçit vermiyor') : E.greenPhase() ? (run.prog >= len ? L(`On the green · ${Math.max(0, Math.ceil(CFG.greenGrace - run.greenWait))}s until 2 putts`, `Yeşilde · ${Math.max(0, Math.ceil(CFG.greenGrace - run.greenWait))} sn sonra 2 putt`) : L('Green: play the putt', 'Yeşil: putt oyna')) : L(`Next shot in ~${U.fmtTime((E.segBoundary(run.shot.k + 1) - run.prog) / Math.max(1e-9, inc) / Math.max(1, speed))}`, `Sonraki vuruşa ~${U.fmtTime((E.segBoundary(run.shot.k + 1) - run.prog) / Math.max(1e-9, inc) / Math.max(1, speed))}`);
+    const lie = E.curLie(), tm = E.terrainMult(lie), o = E.landingOdds();
+    $('lieV').innerHTML = `<span class="${tm < 0.95 ? 'bad' : 'good'}">${N(TERRAIN[lie])} ×${tm.toFixed(2)}</span> <small>${L('Accuracy', 'İsabet')} ${E.accuracy()} / ${L('terrain', 'zemin')} ${E.terrainDiff()}</small>`;
+    $('lieOdds').innerHTML = ['fairway', 'rough', 'bunker', 'water'].filter(k => o[k] > 0).map(k => `<i style="flex:${o[k]};background:${TERRAIN_COL[k]}" title="${N(TERRAIN[k])} ${Math.round(o[k] * 100)}%">${o[k] > 0.08 ? N(TERRAIN[k]) + ' ' + Math.round(o[k] * 100) + '%' : ''}</i>`).join('');
+    const cols = { auto: '#3f9a52', man: '#3a6ee8', pd: '#ff8a3d', gold: '#d9a521', bag: '#8d4fd1' }, names = { auto: L('Helpers', 'Yardımcı'), man: L('Manual', 'Elle'), pd: 'Power Drive', gold: L('Golden ball', 'Altın top'), bag: N(CUR.bags) }, tot = rates.total || 1;
     $('share').innerHTML = Object.keys(cols).map(k => `<i style="width:${(rates[k] / tot * 100).toFixed(1)}%;background:${cols[k]}"></i>`).join('');
-    $('shareLegend').innerHTML = Object.keys(cols).filter(k => rates[k] > 0).map(k => `<span><b style="background:${cols[k]}"></b>${names[k]} %${Math.round(rates[k] / tot * 100)}</span>`).join('');
-    const hint = $('stageHint');
-    if (meta.stats.swings < 3) hint.innerHTML = 'İbre <b>sarı</b> bölgeye gelince <b>Boşluk</b>a bas ya da sahaya tıkla.';
-    else if (run.pd >= 100) hint.innerHTML = '<b>Power Drive hazır!</b> Sıradaki elle vuruş 30 sn\'lik gelir değerinde.';
-    else if (run.streak >= 2) hint.innerHTML = `Seri <b>${run.streak}</b> · ×${E.streakMult().toFixed(2)}`;
-    else hint.innerHTML = `<b>${run.hitters.filter(x => x > 0).length}</b> vurucu · ${E.autoRate().toFixed(1)} vuruş/sn`;
+    $('shareLegend').innerHTML = Object.keys(cols).filter(k => rates[k] > 0).map(k => `<span><b style="background:${cols[k]}"></b>${names[k]} ${Math.round(rates[k] / tot * 100)}%</span>`).join('');
     const g = meta.gt, ab = [];
-    if (E.res('focus')) ab.push(`<button data-ab="focus" ${run.focusCd > g ? 'disabled' : ''}>Odak<small>${run.focusUntil > g ? 'aktif ' + Math.ceil(run.focusUntil - g) + ' sn' : run.focusCd > g ? Math.ceil(run.focusCd - g) + ' sn' : 'hazır'}</small></button>`);
-    if (E.res('tempo')) ab.push(`<button data-ab="tempo" ${run.tempoCd > g ? 'disabled' : ''}>Hızlı Tempo<small>${run.tempoUntil > g ? 'aktif ' + Math.ceil(run.tempoUntil - g) + ' sn' : run.tempoCd > g ? Math.ceil(run.tempoCd - g) + ' sn' : 'hazır'}</small></button>`);
+    for (const [id, nm, until, cd] of [['focus', L('Focus', 'Odak'), run.focusUntil, run.focusCd], ['tempo', L('Tempo Rush', 'Tempo'), run.tempoUntil, run.tempoCd], ['shield', L('Wind Shield', 'Kalkan'), run.shieldUntil, run.shieldCd]]) {
+      if (E.skill(id)) ab.push(`<button data-ab="${id}" ${cd > g ? 'disabled' : ''}>${nm}<small>${until > g ? L('on ', 'açık ') + Math.ceil(until - g) + 's' : cd > g ? Math.ceil(cd - g) + 's' : L('ready', 'hazır')}</small></button>`);
+    }
     const abH = ab.join(''); if ($('abil').dataset.h !== abH) { $('abil').innerHTML = abH; $('abil').dataset.h = abH; }
-    $('puttBtn').hidden = !E.greenPhase() || Putt.isOpen();
-    const dots = { gear: meta.chests.length > 0 || Object.values(meta.equip.seen).some(v => v === false), res: meta.res.q.length < E.resSlots() && RESEARCH.some(r => E.resState(r) === 'open' && meta.bilgi >= r.cost(E.res(r.id))), tour: meta.daily.tries < 3 };
-    document.querySelectorAll('#tabs button').forEach(b => { const has = !!dots[b.dataset.tab], cur = !!b.querySelector('.dot'); if (has && !cur) b.appendChild(U.el('span', 'dot')); else if (!has && cur) b.querySelector('.dot').remove(); });
+    $('puttBtn').hidden = !E.greenPhase() || Putt.isOpen() || run.locked;
+    const dots = { gear: meta.bags.length > 0 || Object.values(meta.equip.seen).some(v => v === false), res: meta.res.q.length < E.resSlots() && RESEARCH.some(r => E.resState(r) === 'open' && E.canPay(r.cost(E.res(r.id)))), team: run.hitters.some(h => !h.type), compete: E.dailyReady() || meta.daily.tries < 3, worlds: run.locked };
+    document.querySelectorAll('#tabs button').forEach(b => { const has = !!dots[b.dataset.tab], c = !!b.querySelector('.dot'); if (has && !c) b.appendChild(U.el('span', 'dot')); else if (!has && c) b.querySelector('.dot').remove(); });
+    $('dailyChip').hidden = !E.dailyReady();
   }
   function shareRates() {
-    const r = { auto: 0, man: 0, pd: 0, gold: 0, chest: 0, total: 0 }; let dt = 0;
+    const r = { auto: 0, man: 0, pd: 0, gold: 0, bag: 0, total: 0 }; let dt = 0;
     for (const h of hist) { for (const k in h.d) r[k] += h.d[k]; dt += h.dt; }
     if (dt <= 0) return r;
-    for (const k of ['auto', 'man', 'pd', 'gold', 'chest']) { r[k] /= dt; r.total += r[k]; }
+    for (const k of ['auto', 'man', 'pd', 'gold', 'bag']) { r[k] /= dt; r.total += r[k]; }
     return r;
   }
   function sampleStats(dtGame) {
-    const cur = Object.assign({}, E.stats); if (!prevStats) prevStats = cur;
-    const d = {}; for (const k in cur) d[k] = cur[k] - (prevStats[k] || 0); prevStats = cur;
+    const c = Object.assign({}, E.stats); if (!prevStats) prevStats = c;
+    const d = {}; for (const k in c) d[k] = c[k] - (prevStats[k] || 0); prevStats = c;
     if (!hist.length || hist[hist.length - 1].age > 1) hist.push({ d, dt: dtGame, age: 0 });
     else { const h = hist[hist.length - 1]; for (const k in d) h.d[k] = (h.d[k] || 0) + d[k]; h.dt += dtGame; }
   }
 
-  // ---------- ana döngü ----------
+  // ---------- main loop ----------
   let last = performance.now();
   function frame(now) {
     const dtR = Math.min(0.1, (now - last) / 1000); last = now;
     const S = E.get();
     if (Putt.isOpen() && !Tour.isOpen()) S.run.greenWait = 0;
     if (speed > 0) E.tickOnline(dtR * speed, dtR);
-    for (const h of hist) h.age += dtR;
-    sampleStats(dtR * speed);
-    while (hist.length && hist[0].age > 30) hist.shift();
-    ring.perfectDeg = 12 + 3 * E.res('sweet');
+    hist.forEach(h => h.age += dtR); sampleStats(dtR * speed); while (hist.length && hist[0].age > 30) hist.shift();
     ring.update(dtR);
     ring.pd = S.run.pd; ring.pdReady = S.run.pd >= 100; ring.focus = S.run.focusUntil > S.meta.gt;
     ring.enabled = !Putt.isOpen() && !Tour.isOpen() && !modalOpen;
-    ring.center = ring.pdReady ? 'POWER' : S.run.streak > 0 ? 'SERİ ' + S.run.streak : 'VURUŞ';
-    ring.sub = ring.pdReady ? 'DRIVE HAZIR' : S.run.streak > 0 ? '×' + E.streakMult().toFixed(2) : 'BOŞLUK / TIKLA';
+    ring.center = ring.pdReady ? 'POWER' : S.run.streak > 0 ? L('STREAK ', 'SERİ ') + S.run.streak : L('SWING', 'VURUŞ');
+    ring.sub = ring.pdReady ? 'DRIVE' : S.run.streak > 0 ? '×' + E.streakMult().toFixed(2) : L('SPACE / CLICK', 'BOŞLUK / TIKLA');
     ring.draw();
-    Scene.update(dtR); Scene.draw(); HoleMap.draw();
+    Stage.update(dtR); viewA.draw(); viewB.draw(); HoleMap.draw();
     hud();
-    if (tab === 'look') { previewT = (previewT + dtR / 1.6) % 1.6; const cv = $('lookPreview'); cv && Art.preview(cv, S.meta.looks[lookSel], previewT < 1 ? previewT : -1); }
-    panelTimer += dtR;
-    if (panelTimer > 0.35) { panelTimer = 0; renderPanel(false); renderGoals(false); }
+    if (tab === 'look') { previewT = (previewT + dtR / 1.6) % 1.6; const cv = $('lookPreview'); const wi = lookWorld < 0 ? E.worldOf(S.run.n) : lookWorld; cv && Art.preview(cv, S.meta.looks[lookSel], WORLDS[wi], S.meta.worldOutfit, previewT < 1 ? previewT : -1); }
+    panelTimer += dtR; if (panelTimer > 0.4) { panelTimer = 0; renderPanel(false); }
     saveTimer += dtR; if (saveTimer > 10) { saveTimer = 0; save(); }
     requestAnimationFrame(frame);
   }
 
   function help() {
-    modal(`<h3>Par Fabrikası · prototip 2</h3>
-      <ol class="help">
-        <li><b>Elle vuruş:</b> halkadaki ibre sarı bölgeye gelince <kbd>Boşluk</kbd>. Dış turuncu halka dolunca Power Drive.</li>
-        <li><b>Delik ve par:</b> her delik par−2 vuruş bölümünden oluşur. Her bölüm bitince top düşer: fairway, rough, bunker ya da su. Kötü zemin sonraki bölümü yavaşlatır, bunker ve su +1 vuruş ekler.</li>
-        <li><b>Putt:</b> yeşilde önce yönü, sonra gücü seç. Skorun = vuruşlar + putt. Birdie ★★★, par ★★, bogey ★.</li>
-        <li><b>Sezon yok:</b> delikler kurs kurs devam eder. Her biten kurs kalıcı ×2 kupa verir.</li>
-        <li><b>Sandık</b> her delikten düşer: ekipman, Bilgi, parça ya da yarda. Parça ekipmanı geliştirir, Bilgi araştırmayı açar.</li>
-        <li><b>Görünüm</b> sekmesinde kendini ve vurucularını giydir; sopanın rengi takılı ekipmandan gelir.</li>
-        <li><b>Turnuva</b> sekmesi: zor günlük delik ve 9 delikli haftalık turnuva, gerçek ölçekte.</li>
-        <li><b>Zaman:</b> ×10 / ×100 ya da <b>Zamanı atla</b>.</li>
-      </ol><div class="btnrow"><button class="btn primary" id="hOk">Başla</button></div>`, { onMount: c => c.querySelector('#hOk').addEventListener('click', closeModal) });
+    modal(`<h3>Par Factory · ${L('prototype 3', 'prototip 3')}</h3><ol class="help">
+      <li>${L('<b>Swing:</b> press <kbd>Space</kbd> when the needle is in the yellow zone. The outer ring charges a Power Drive.', '<b>Vuruş:</b> ibre sarı bölgedeyken <kbd>Boşluk</kbd>. Dış halka Power Drive\'ı doldurur.')}</li>
+      <li>${L('<b>Holes and par:</b> each hole is par−2 shots, then a putt. Every shot lands on fairway, rough, bunker or water.', '<b>Delik ve par:</b> her delik par−2 vuruş ve bir putt. Her vuruş fairway, rough, bunker ya da suya düşer.')}</li>
+      <li>${L('<b>Worlds:</b> the map changes every 24 holes (rain, storm, forest, desert, snow, ice, moon, space, Mercury). Each needs stars to open.', '<b>Dünyalar:</b> harita her 24 delikte değişir (yağmur, fırtına, orman, çöl, kar, buz, ay, uzay, Merkür). Her biri yıldızla açılır.')}</li>
+      <li>${L('<b>Wind gates:</b> on some holes the wind is too strong. Raise wind control: Accuracy training, research, Accurate helpers, grips and balls.', '<b>Rüzgâr kapıları:</b> bazı deliklerde rüzgâr çok güçlü. Rüzgâr kontrolünü artır: İsabet antrenmanı, araştırma, İsabetli yardımcı, sap ve top.')}</li>
+      <li>${L('<b>Team:</b> choose Power, Accuracy or Tempo helpers to cover your weak side. Train them with Medals.', '<b>Takım:</b> zayıf yanını kapatmak için Güçlü, İsabetli ya da Hızlı yardımcı seç. Madalyayla geliştir.')}</li>
+      <li>${L('<b>Gear bags</b> hold items in 10 rarities. Higher rarities must be researched first.', '<b>Ekipman çantaları</b> 10 nadirlikte parça içerir. Yüksek nadirlikler önce araştırılmalı.')}</li>
+      <li>${L('<b>View:</b> switch between A (side) and B (driving range), or show both to compare.', '<b>Görünüm:</b> A (yandan) ile B (driving range) arasında geç ya da karşılaştırmak için ikisini birden göster.')}</li></ol>
+      <div class="btnrow"><button class="btn primary" id="hOk">${L('Play', 'Oyna')}</button></div>`, { onMount: c => c.querySelector('#hOk').addEventListener('click', closeModal) });
   }
 
-  // ---------- başlatma ----------
+  // ---------- boot ----------
   function boot(hotData) {
-    const saved = (hotData && hotData.S && hotData.S.v === 2 ? hotData.S : null) || load();
+    const saved = (hotData && hotData.S && hotData.S.v === 3 ? hotData.S : null) || load();
     let offline = null;
-    if (saved) { E.attach(saved); const dt = (Date.now() - (saved.lastSeen || Date.now())) / 1000; if (!hotData && dt >= 60) offline = dt; }
-    else E.fresh();
+    if (saved) { E.attach(saved); const dt = (Date.now() - (saved.lastSeen || Date.now())) / 1000; if (!hotData && dt >= 60) offline = dt; } else E.fresh();
+    LANG.cur = E.get().settings.lang || 'en';
     ring = new Ring($('ring'));
-    Scene.init($('scene')); HoleMap.init($('holemap')); Putt.init(); Tour.init();
-    $('scene').addEventListener('pointerdown', e => {
-      const r = $('scene').getBoundingClientRect(), g = Scene.hitGold(e.clientX - r.left, e.clientY - r.top);
-      if (g) { const res = E.goldReward(); Scene.banner('ALTIN TOP', res.text, '#ffd23f', 2); Scene.popup(g.x, g.y, res.y ? '+' + U.fmt(res.y) : '★', '#ffd23f', true); toast('Altın top: ' + res.text, 'gold'); return; }
+    viewA = makeSideView($('sceneA')); viewB = makeRangeView($('sceneB'));
+    Stage.views.push(viewA, viewB); Stage.sync();
+    HoleMap.init($('holemap')); Putt.init(); Tour.init();
+    window.addEventListener('resize', () => { viewA.resize(); viewB.resize(); });
+    for (const v of [viewA, viewB]) v.cv.addEventListener('pointerdown', e => {
+      const r = v.cv.getBoundingClientRect(), [nx, ny, W, H] = v.toNorm(e.clientX - r.left, e.clientY - r.top);
+      if (Stage.hitGold(nx, ny, W, H)) { const res = E.goldReward(); Stage.banner(L('GOLDEN BALL', 'ALTIN TOP'), res.text, '#ffd23f', 2); toast(L('Golden ball: ', 'Altın top: ') + res.text, 'gold'); return; }
       swing();
     });
     $('ring').addEventListener('pointerdown', e => { e.preventDefault(); swing(); });
     $('puttBtn').addEventListener('click', openPutt);
-    $('abil').addEventListener('click', e => { const b = e.target.closest('[data-ab]'); if (b && E.useAbility(b.dataset.ab)) toast(b.dataset.ab === 'focus' ? 'Odak: mükemmel bölgesi 2 kat' : 'Hızlı Tempo: vurucular ×3', 'blue'); });
-    $('sChestBtn').addEventListener('click', () => setTab('gear'));
-    $('tourBtn').addEventListener('click', () => setTab('tour'));
+    $('abil').addEventListener('click', e => { const b = e.target.closest('[data-ab]'); if (b && E.useAbility(b.dataset.ab)) toast(b.textContent, 'blue'); });
+    $('sBagBtn').addEventListener('click', () => setTab('gear'));
+    $('dailyChip').addEventListener('click', () => setTab('compete'));
     $('skipBtn').addEventListener('click', skipModal);
     $('helpBtn').addEventListener('click', help);
-    $('speed').addEventListener('click', e => {
-      const b = e.target.closest('[data-speed]'); if (!b) return;
-      speed = +b.dataset.speed; document.querySelectorAll('#speed [data-speed]').forEach(x => x.classList.toggle('on', x === b));
-    });
+    $('reqLine').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) setTab(b.dataset.go); });
+    $('speed').addEventListener('click', e => { const b = e.target.closest('[data-speed]'); if (!b) return; speed = +b.dataset.speed; document.querySelectorAll('#speed [data-speed]').forEach(x => x.classList.toggle('on', x === b)); });
+    $('viewBtn').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view); });
+    $('langBtn').addEventListener('click', e => { const b = e.target.closest('[data-lang]'); if (b) { E.get().settings.lang = b.dataset.lang; applyLang(); } });
     $('tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
-    for (const root of [$('tabBody'), $('goals')]) {
-      root.addEventListener('pointerdown', e => { const b = e.target.closest('button[data-act]'); if (b && !b.disabled && e.button === 0) { e.preventDefault(); onAct(b); } });
-      root.addEventListener('click', e => { const b = e.target.closest('button[data-act]'); if (b && e.detail === 0 && !b.disabled) onAct(b); });
-    }
-    $('tabBody').addEventListener('change', e => {
+    const body = $('tabBody');
+    body.addEventListener('pointerdown', e => { const b = e.target.closest('button[data-act]'); if (b && !b.disabled && e.button === 0) { e.preventDefault(); onAct(b); } });
+    body.addEventListener('click', e => { const b = e.target.closest('button[data-act]'); if (b && e.detail === 0 && !b.disabled) onAct(b); });
+    body.addEventListener('change', e => {
       const t = e.target;
       if (t.dataset.cfg) { const v = parseFloat(t.value); if (isFinite(v) && v > 0) { CFG[t.dataset.cfg] = v; E.get().cfg[t.dataset.cfg] = v; } }
-      if (t.dataset.act === 'autoAll') onAct(t);
+      if (t.dataset.act === 'autoAll' || t.dataset.act === 'worldOutfit') onAct(t);
     });
     $('modal').addEventListener('pointerdown', e => { if (e.target === $('modal')) closeModal(); });
     document.addEventListener('keydown', e => {
@@ -563,13 +554,13 @@ const UI = (() => {
     window.addEventListener('beforeunload', save);
     document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
     window.claude?.hot?.snapshot?.(() => ({ S: E.get() }));
-    setTab('up'); renderGoals(true);
+    setView(E.get().settings.view || 'side');
+    applyLang(); setTab('up');
     requestAnimationFrame(frame);
-    if (offline) runSkip(offline, 'offline', 'none', 'Siz yokken');
+    if (offline) runSkip(offline, 'offline', 'none', L('While you were away', 'Sen yokken'));
     else if (!saved) help();
   }
-
-  return { boot, modal, closeModal, toast, refreshAll, save, get speed() { return speed; } };
+  return { boot, modal, closeModal, toast, refreshAll, save, setTab, get speed() { return speed; } };
 })();
 
 window.claude?.hot?.ready ? window.claude.hot.ready(UI.boot) : UI.boot(window.claude?.hot?.data ?? null);
