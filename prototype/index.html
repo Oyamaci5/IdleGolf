@@ -290,7 +290,7 @@ kbd { font: 700 12px var(--f-num); border: 1px solid #b9c4bb; border-bottom-widt
 .club:disabled { opacity: 0.35; }
 .t-g { font-size: 12px; color: var(--muted); }
 .ringwrap { display: flex; align-items: center; gap: 10px; }
-#tourRing { width: 130px; height: 130px; flex: none; cursor: pointer; }
+#tourRing { position: absolute; right: 10px; bottom: 34px; width: 128px; height: 128px; cursor: pointer; }
 .ringwrap p { margin: 0; font-size: 13px; color: var(--muted); }
 .card-scroll { overflow-x: auto; }
 .scorecard { border-collapse: collapse; width: 100%; font: 600 13px/1 var(--f-num); text-align: center; }
@@ -311,6 +311,87 @@ kbd { font: 700 12px var(--f-num); border: 1px solid #b9c4bb; border-bottom-widt
 .toast.gold { border-left-color: var(--gold); } .toast.blue { border-left-color: var(--blue); } .toast.red { border-left-color: var(--red); }
 @keyframes tin { from { transform: translateX(30px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
+
+/* ---------- prototip 2 ekleri ---------- */
+.tourbtn { background: var(--gold) !important; color: #1d1606 !important; border: 0 !important; }
+.holehead .meta b { color: #fff; }
+.coursestrip { display: grid; grid-template-columns: repeat(18, minmax(0, 1fr)); gap: 2px; }
+.coursestrip div { background: var(--board); border: 1px solid #072218; border-radius: 3px; text-align: center; padding: 2px 0 1px; color: #a9cdb9; font: 600 10px/1.1 var(--f-num); }
+.coursestrip div b { display: block; font-size: 11px; color: #cfe6d8; letter-spacing: -1px; }
+.coursestrip div.past b { color: var(--gold); }
+.coursestrip div b i { font-style: normal; color: rgba(255,255,255,0.18); }
+.coursestrip div.cur { background: var(--slot); color: var(--ink); }
+.coursestrip div.cur b { color: var(--red); }
+.bar .marks i { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,0.55); }
+.goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px; }
+.goal { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; }
+.goal b { display: block; font: 700 14px/1.15 var(--f-num); }
+.goal small { color: var(--muted); font-size: 12px; }
+.goal.done { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); background: #fff8e3; }
+.goal.later { opacity: 0.6; }
+.mini-btn { padding: 5px 9px; font-size: 13px; }
+.bad { color: var(--red); } .good { color: #2c7a35; }
+.lieodds { display: flex; height: 18px; border-radius: 3px; overflow: hidden; margin-top: 5px; }
+.lieodds i { display: flex; align-items: center; justify-content: center; font: 700 11px/1 var(--f-num); color: #fff; font-style: normal; text-shadow: 0 1px 1px rgba(0,0,0,0.4); white-space: nowrap; overflow: hidden; }
+.uprow { grid-template-columns: 34px minmax(0, 1fr) auto; }
+.mini { width: 34px; height: 40px; display: block; }
+.ico { border-radius: 4px; background: #e8efe7; position: relative; }
+.ico::after { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 800 15px var(--f-num); color: #3c6a48; }
+.ico-head::after { content: "SB"; } .ico-shaft::after { content: "ŞA"; } .ico-grip::after { content: "TU"; } .ico-ball::after { content: "TO"; } .ico-stance::after { content: "DU"; } .ico-clubhouse::after { content: "KE"; }
+.pips { display: flex; gap: 2px; margin: 3px 0; }
+.pips i { width: 9px; height: 5px; border-radius: 1px; background: #dfe6de; }
+.pips i.on { background: var(--fair); }
+.node .nm small { color: var(--muted); font-weight: 600; }
+.odds { display: flex; height: 22px; border-radius: 4px; overflow: hidden; }
+.odds span { display: flex; align-items: center; justify-content: center; background: var(--rc); color: #fff; font: 700 11px/1 var(--f-num); white-space: nowrap; overflow: hidden; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: 0; border: 1px solid rgba(0,0,0,0.25); }
+.album button { position: relative; }
+.album button em { position: absolute; top: -6px; right: -4px; background: var(--red); color: #fff; font: 700 9px/1 var(--f-num); font-style: normal; padding: 2px 4px; border-radius: 2px; }
+.lookprev { width: 100%; height: 220px; border-radius: 6px; border: 1px solid var(--line); display: block; }
+.pill { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 11px; font: 700 13px/1 var(--f-num); }
+.pill.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 5px; }
+.sw-btn { border: 1px solid var(--line); background: #fff; border-radius: 5px; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.sw-btn span { width: 100%; height: 22px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.15); }
+.sw-btn small { font: 600 11px/1.1 var(--f-num); color: var(--ink); text-align: center; }
+.sw-btn.on { box-shadow: 0 0 0 2px var(--ink); }
+.sw-btn:disabled { opacity: 0.55; cursor: default; }
+.sw-btn:disabled small { color: var(--muted); }
+.tourcard .tc-top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font: 600 14px/1.3 var(--f-num); }
+ul.plain { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+ul.plain li { margin: 3px 0; } ul.plain b { color: var(--ink); }
+.trophies { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 5px; }
+.trophies div { border: 1px solid var(--line); border-radius: 5px; background: #fff; text-align: center; padding: 5px 2px; }
+.trophies div b { display: block; font-size: 22px; line-height: 1.2; }
+.trophies div span { display: block; font: 700 13px/1.1 var(--f-num); }
+.trophies div small { font-size: 11px; color: var(--muted); }
+.trophies div.won { background: #fff8e3; border-color: var(--gold); }
+.trophies div.cur { box-shadow: inset 0 0 0 2px var(--ink); }
+.trophy { font-size: 64px; text-align: center; line-height: 1.1; }
+.chesticon { position: relative; width: 74px; height: 58px; margin: 0 auto; animation: shakebag 0.6s ease-in-out 2; }
+.chesticon i { position: absolute; left: 0; right: 0; bottom: 0; height: 36px; background: var(--cc); border-radius: 0 0 6px 6px; border: 3px solid #3a2a12; }
+.chesticon b { position: absolute; left: 0; right: 0; top: 0; height: 24px; background: var(--cc); border-radius: 12px 12px 2px 2px; border: 3px solid #3a2a12; filter: brightness(1.15); }
+.chesticon b::after { content: ""; position: absolute; left: 50%; top: 12px; width: 10px; height: 12px; margin-left: -5px; background: var(--gold); border: 2px solid #3a2a12; border-radius: 2px; }
+.hist { display: flex; align-items: flex-end; gap: 3px; height: 110px; margin: 8px 0; }
+.hist div { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; }
+.hist div i { display: block; width: 100%; background: #b9cbbd; border-radius: 2px 2px 0 0; min-height: 2px; }
+.hist div span { font: 700 12px/1 var(--f-num); color: var(--muted); }
+.hist div.me i { background: var(--red); }
+.hist div.me span { color: var(--red); }
+.sumtable tr.me td { color: var(--red); font-weight: 700; }
+.clubs2 { display: flex; flex-direction: column; gap: 2px; }
+.crow { display: grid; grid-template-columns: 28px minmax(0, 1fr) 52px 48px; gap: 6px; align-items: center; border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 3px 6px; font: 600 12px/1 var(--f-num); text-align: left; }
+.crow b { font-size: 14px; }
+.crow em { font-style: normal; color: var(--muted); text-align: right; }
+.crow .cbar { height: 6px; background: #e3e9e2; border-radius: 3px; overflow: hidden; }
+.crow .cbar i { display: block; height: 100%; background: var(--fair); }
+.crow.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.crow.on em { color: #b9d3c3; }
+.crow:disabled { opacity: 0.35; }
+.report { border: 1px solid #f0c9b5; background: #fff7f2; border-radius: 5px; padding: 6px 8px; }
+.report .kv { font-size: 12px; }
+.t-stats small { display: block; font-size: 11px; color: var(--muted); }
+.puttstep { font: 600 14px/1.3 var(--f-num); color: #fff; min-height: 1.3em; }
 </style>
 
 <header class="board">
@@ -319,9 +400,9 @@ kbd { font: 700 12px var(--f-num); border: 1px solid #b9c4bb; border-bottom-widt
     <div class="slot"><label>Yarda</label><output id="sYards" class="num">0</output></div>
     <div class="slot"><label>Gelir / sn</label><output id="sIncome" class="num">0</output></div>
     <div class="slot red"><label>Yıldız</label><output id="sStars" class="num">0</output></div>
-    <div class="slot"><label>Tur Puanı</label><output id="sTP" class="num">0</output></div>
     <div class="slot"><label>Bilgi</label><output id="sBilgi" class="num">0</output></div>
-    <button class="slot gold" id="sBagsBtn" type="button"><label>Çanta</label><output id="sBags" class="num">0</output></button>
+    <div class="slot"><label>Parça</label><output id="sParts" class="num">0</output></div>
+    <button class="slot gold" id="sChestBtn" type="button"><label>Sandık</label><output id="sChests" class="num">0</output></button>
   </div>
   <div class="timebox">
     <div class="clock">Oyun saati <b id="clock">Gün 1 · 0:00:00</b></div>
@@ -331,6 +412,7 @@ kbd { font: 700 12px var(--f-num); border: 1px solid #b9c4bb; border-bottom-widt
       <button type="button" data-speed="10">×10</button>
       <button type="button" data-speed="100">×100</button>
       <button type="button" class="skip" id="skipBtn">Zamanı atla</button>
+      <button type="button" class="tourbtn" id="tourBtn">Turnuva</button>
       <button type="button" class="helpbtn" id="helpBtn" aria-label="Nasıl oynanır">?</button>
     </div>
   </div>
@@ -339,20 +421,22 @@ kbd { font: 700 12px var(--f-num); border: 1px solid #b9c4bb; border-bottom-widt
 <main class="layout">
   <section class="play">
     <div class="holehead"><div class="h1" id="holeTitle">Delik 1</div><div class="meta" id="holeMeta"></div></div>
+    <div class="coursestrip" id="courseStrip" aria-label="Kurs skor şeridi"></div>
     <canvas id="holemap" aria-label="Deliğin üstten görünümü"></canvas>
     <div class="stage" id="stage">
       <canvas id="scene" aria-label="Saha: vuruşlar ve toplar"></canvas>
       <div class="stagehint" id="stageHint"></div>
       <div class="abil" id="abil"></div>
-      <button type="button" id="puttBtn" hidden>Putt oyna<small>yeşildesin: yıldız kazan</small></button>
+      <button type="button" id="puttBtn" hidden>Putt oyna<small>yön + güç · yıldız kazan</small></button>
       <canvas id="ring" aria-label="Vuruş halkası"></canvas>
     </div>
     <div class="progress">
-      <div class="bar"><div class="g90" title="Son %10: yeşil fazı"></div><div class="fill" id="pfill"></div></div>
+      <div class="bar"><div class="g90" title="Son %10: yeşil"></div><div class="fill" id="pfill"></div><div class="marks" id="pmarks"></div></div>
       <div class="row"><div id="pText" class="num"></div><span id="pEta"></span></div>
     </div>
+    <div class="goals" id="goals"></div>
     <div class="chips">
-      <div class="chip"><h4>Zemin (Tutuş vs delik zorluğu)</h4><div class="v" id="lieV"></div><p id="lieP"></p></div>
+      <div class="chip"><h4>Topun yeri · sonraki düşüş olasılığı</h4><div class="v" id="lieV"></div><div class="lieodds" id="lieOdds"></div></div>
       <div class="chip"><h4>Rüzgâr</h4><div class="v" id="windV"></div><div class="wstrip" id="windStrip"></div></div>
       <div class="chip"><h4>Gelirin kaynağı · son 30 sn</h4><div class="share" id="share"></div><div class="legend" id="shareLegend"></div></div>
     </div>
@@ -360,10 +444,11 @@ kbd { font: 700 12px var(--f-num); border: 1px solid #b9c4bb; border-bottom-widt
   <aside class="panel">
     <nav class="tabs" id="tabs">
       <button type="button" data-tab="up" class="on">Yükseltme</button>
-      <button type="button" data-tab="bag">Çanta</button>
-      <button type="button" data-tab="acad">Akademi</button>
-      <button type="button" data-tab="daily">Günlük</button>
-      <button type="button" data-tab="season">Sezon</button>
+      <button type="button" data-tab="res">Araştırma</button>
+      <button type="button" data-tab="gear">Ekipman</button>
+      <button type="button" data-tab="look">Görünüm</button>
+      <button type="button" data-tab="tour">Turnuva</button>
+      <button type="button" data-tab="career">Kariyer</button>
       <button type="button" data-tab="tune">Denge</button>
     </nav>
     <div class="tabbody" id="tabBody"></div>
@@ -376,8 +461,9 @@ kbd { font: 700 12px var(--f-num); border: 1px solid #b9c4bb; border-bottom-widt
   <div class="puttbox">
     <div class="ph"><b id="puttTitle">Putt</b><span id="puttSub"></span></div>
     <canvas id="puttCanvas"></canvas>
+    <div class="puttstep" id="puttStep"></div>
     <div class="puttinfo" id="puttInfo"></div>
-    <div class="puttfoot"><span>Sarı çizgi sağa sola salınır. Okuma çizgisi deliğe giderken <kbd>Boşluk</kbd> ya da tıkla.</span><button type="button" class="btn" id="puttSkip">Geç</button></div>
+    <div class="puttfoot"><span>Eğim okları topun kırılacağı yönü gösterir. <kbd>Boşluk</kbd> ya da tıkla.</span><button type="button" class="btn" id="puttSkip">Geç</button></div>
   </div>
 </div>
 
@@ -385,11 +471,12 @@ kbd { font: 700 12px var(--f-num); border: 1px solid #b9c4bb; border-bottom-widt
   <div class="tourbox">
     <div class="tcanvas-wrap">
       <canvas id="tourCanvas" aria-label="Gerçek ölçekli delik"></canvas>
+      <canvas id="tourRing" aria-label="Vuruş halkası"></canvas>
       <div id="tourMsg"></div>
     </div>
     <div class="tside">
       <div id="tourSide"></div>
-      <div class="ringwrap"><canvas id="tourRing"></canvas><p>1. Sahada hedefi sürükle (sopa kendiliğinden seçilir, istersen değiştir).<br>2. İbre sarı bölgedeyken <kbd>Boşluk</kbd> ya da halkaya tıkla.<br>Elips: iyi vuruşta topun düşeceği alan.</p></div>
+      <div class="ringwrap"><p>1. Sahada hedefi sürükle.<br>2. İbre sarı bölgedeyken <kbd>Boşluk</kbd> ya da halkaya tıkla.<br>Sarı elips: iyi vuruşta topun %95 düşeceği alan.</p></div>
       <button type="button" class="btn tclose" id="tourClose">Turdan çık</button>
     </div>
   </div>
