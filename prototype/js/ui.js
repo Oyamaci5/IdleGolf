@@ -44,8 +44,9 @@ const UI = (() => {
   // ---------- hooks ----------
   E.hooks.shot = e => {
     Stage.views.forEach(v => v.shot && v.shot(e));
-    const T = { fairway: [L('FAIRWAY', 'FAIRWAY'), '#bff0a0', L('Clean shot', 'Temiz vuruş')], rough: [L('ROUGH', 'ROUGH'), '#f3e3b0', L('Next shot slower', 'Sonraki vuruş yavaş')], bunker: [L('BUNKER!', 'BUNKER!'), '#ffd59a', L('+1 stroke · heavy lie', '+1 vuruş · ağır zemin')], water: [L('WATER!', 'SU!'), '#9fd2ff', L('+1 penalty stroke', '+1 ceza vuruşu')], green: [L('ON THE GREEN', 'YEŞİLDE'), '#d8ffb5', L('Time to putt', 'Putt zamanı')] }[e.land];
-    Stage.banner(L(`Shot ${e.k}: `, `${e.k}. vuruş: `) + T[0], `${T[2]} · ${L('lie', 'zemin')} ×${E.terrainMult(e.land).toFixed(2)}`, T[1], 1.8);
+    const pct = Math.round((E.terrainMult(e.land) - 1) * 100), nm = N(E.hazardName(e.land)).toUpperCase();
+    const T = { fairway: ['#bff0a0', L('Clean shot', 'Temiz vuruş')], rough: ['#f3e3b0', L('Next shot slower', 'Sonraki vuruş yavaş')], bunker: ['#ffd59a', L('+1 stroke', '+1 vuruş')], water: ['#9fd2ff', L('+1 penalty', '+1 ceza')], green: ['#d8ffb5', L('Time to putt', 'Putt zamanı')] }[e.land];
+    Stage.banner(`${nm}!`, `${T[1]}${pct ? ` · ${pct > 0 ? '+' : ''}${pct}% ${L('speed', 'hız')}` : ''}`, T[0], 1.6);
   };
   E.hooks.hole = ({ n, par, strokes, rel, stars, auto, worldDone }) => {
     const name = { '-3': 'ALBATROSS', '-2': 'EAGLE', '-1': 'BIRDIE', '0': 'PAR', '1': 'BOGEY', '2': 'DOUBLE BOGEY' }[rel] || (rel < -3 ? 'LEGEND' : '+' + rel);
@@ -56,6 +57,25 @@ const UI = (() => {
   E.hooks.ach = a => { toast(`🏆 ${N(a.name)} · ${E.rewardText(a.reward)}`, 'gold'); };
   E.hooks.world = ({ w }) => { worldModal(w); };
   E.hooks.toast = (t, k) => toast(t, k);
+  // hazard escape: only when the player is actually here; away from the game the penalty just applies
+  let lastInput = 0;
+  const playerActive = () => performance.now() - lastInput < 60000 && speed > 0 && speed <= 10 && !modalOpen && !Putt.isOpen() && !Tour.isOpen() && !Escape.isOpen() && !document.hidden;
+  E.hooks.hazard = h => {
+    if (!playerActive()) return false;
+    const w = E.world(), d = E.accuracy() - E.terrainDiff();
+    setTimeout(() => {
+      if (!E.get().run.hazard) return;
+      Escape.open({
+        land: h.land, grass: w.grass[0], sand: w.sand, waterCol: w.id === 'mercury' ? '#e0602a' : w.id === 'ice' || w.id === 'snow' ? '#a9d8f0' : '#3d8fd1',
+        zone: 0.14 + 0.012 * d,
+        title: L(`Escape the ${N(E.hazardName(h.land)).toLowerCase()}!`, `${N(E.hazardName(h.land))}'dan çık!`),
+        info: L('Stop the marker in the green zone. Higher Accuracy = wider zone.', 'İşaretçiyi yeşilde durdur. İsabet yüksekse bölge geniş.'),
+        onDone: ok => { E.resolveHazard(ok); Stage.banner(ok ? L('ESCAPED!', 'ÇIKTI!') : L('+1 STROKE', '+1 VURUŞ'), ok ? L('No penalty', 'Ceza yok') : '', ok ? '#bff0a0' : '#ffd59a', 1.4); },
+      });
+    }, 700);
+    return true;
+  };
+  E.hooks.patience = () => { toast(L('Patience bonus: +1 ★ for staying on this hole', 'Sabır ödülü: bu delikte kaldığın için +1 ★'), 'gold'); };
   function worldDoneModal(w) {
     const next = WORLDS[w + 1], S0 = E.get();
     if (!next) return;
@@ -94,20 +114,9 @@ const UI = (() => {
       onDone: (tries, info) => { if (E.get().run.n === key) E.puttDone(info && info.skipped ? CFG.autoPutts : tries); },
     }));
   }
-  function openReplay(n) {
-    if (Putt.isOpen()) return;
-    Putt.open(Object.assign(puttOpts(), {
-      distFt: 8 + Math.random() * 14, title: L(`Replay · hole ${E.holeIn(n)}`, `Tekrar · delik ${E.holeIn(n)}`),
-      sub: L(`${E.get().meta.shots[n] ?? E.segCount(n)} strokes before the green · par ${E.parOf(n)}`, `Yeşile kadar ${E.get().meta.shots[n] ?? E.segCount(n)} vuruş · par ${E.parOf(n)}`),
-      maxTries: 4, skipTries: 4, skipLabel: L('Cancel', 'Vazgeç'),
-      onDone: (tries, info) => { if (info && info.skipped) return; const r = E.replayDone(n, tries); toast(r.newStar ? L(`New best: ${U.stars(r.stars)}`, `Yeni rekor: ${U.stars(r.stars)}`) : L('No improvement this time', 'Bu sefer gelişme yok'), r.newStar ? 'gold' : ''); renderPanel(true); },
-    }));
-  }
-
   // ---------- skip ----------
   function skipModal() {
     modal(`<h3>${L('Fast-forward time', 'Zamanı ileri al')}</h3>
-      <p class="note">${L('The chosen time is simulated step by step with the same rules. Research timers run too.', 'Seçilen süre aynı kurallarla adım adım simüle edilir. Araştırmalar da ilerler.')}</p>
       <div class="sec"><h3>${L('Duration', 'Süre')}</h3><div class="opts">${[[600, '10 min', '10 dk'], [3600, '1 h', '1 sa'], [4 * 3600, '4 h', '4 sa'], [12 * 3600, '12 h', '12 sa'], [86400, '1 day', '1 gün'], [3 * 86400, '3 days', '3 gün']].map(([s, a, b], i) => `<label><input type="radio" name="skd" value="${s}" ${i === 1 ? 'checked' : ''}>${L(a, b)}</label>`).join('')}</div></div>
       <div class="sec"><h3>${L('How was it spent?', 'Nasıl geçti?')}</h3><div class="opts">
         <label><input type="radio" name="skp" value="offline" checked>${L(`App closed (${Math.round(E.offlineEff() * 100)}%, capped)`, `Uygulama kapalı (%${Math.round(E.offlineEff() * 100)}, tavanlı)`)}</label>
@@ -208,8 +217,7 @@ const UI = (() => {
         <span>${L('Accuracy', 'İsabet')}</span><b>${pf.acc}</b><span>${L('Wind control', 'Rüzgâr kontrolü')}</span><b>${pf.wc}</b><span>${L('Team tempo', 'Takım temposu')}</span><b>${U.fmt(pf.tempo)} ${L('swings/s', 'vuruş/sn')}</b></div></div>
       ${meter(L('Accuracy vs terrain', 'İsabet ve zemin'), pf.acc, pf.need)}
       ${meter(L(`Wind control vs ${N(w.windName).toLowerCase()} (this hole)`, `Rüzgâr kontrolü ve ${N(w.windName).toLowerCase()} (bu delik)`), pf.wc, E.holeWind(), '')}
-      ${nextGate ? meter(L(`Next wind gate: hole ${nextGate}`, `Sıradaki rüzgâr kapısı: delik ${nextGate}`), pf.wc, E.holeWind((E.worldOf(run.n)) * WORLD_HOLES + nextGate)) : ''}
-      <p class="note">${L('Your own power comes from training, club power from gear. Pick helpers that cover your weak side: low accuracy → Accurate hitters; low distance → Power hitters; slow → Fast hitters.', 'Kendi gücün antrenmandan, sopanın gücü ekipmandan gelir. Yardımcıları zayıf yanına göre seç: isabet düşükse İsabetli, mesafe düşükse Güçlü, yavaşsan Hızlı vurucu.')}</p></div></div>`;
+      ${nextGate ? meter(L(`Next wind gate: hole ${nextGate}`, `Sıradaki rüzgâr kapısı: delik ${nextGate}`), pf.wc, E.holeWind((E.worldOf(run.n)) * WORLD_HOLES + nextGate)) : ''}</div></div>`;
     h += `<div class="sec"><h3>${L('Helpers', 'Yardımcılar')} <span>${cur('medals', meta.medals)}</span></h3>`;
     run.hitters.forEach((hh, i) => {
       h += `<div class="helper"><canvas class="mini" data-look="h${i}"></canvas><div class="hb"><div class="nm">${L('Helper', 'Yardımcı')} ${i + 1} <small>${L('lv', 'sv')} ${hh.L}</small></div>
@@ -229,7 +237,7 @@ const UI = (() => {
     const S = E.get(), meta = S.meta, A = meta.res;
     let h = `<div class="sec"><h3>${L('Lab', 'Laboratuvar')} <span>${A.q.length}/${E.resSlots()} · ${cur('data', meta.data)} ${cur('shards', meta.shards)} ${cur('medals', meta.medals)}</span></h3>`;
     if (A.q.length) for (const q of A.q) { const r = RESEARCH.find(x => x.id === q.id), left = q.end - meta.gt; h += `<div class="card"><b>${N(r.name)} ${E.res(r.id) + 1}</b><div class="pbar"><i style="width:${((1 - left / q.dur) * 100).toFixed(1)}%"></i></div><p class="note">${L('Time left', 'Kalan')} <b>${U.fmtTime(left)}</b></p></div>`; }
-    else h += `<p class="note">${L('The lab is empty. Data comes from every hole, daily rewards, achievements and tournaments.', 'Laboratuvar boş. Veri her delikten, günlük ödüllerden, başarımlardan ve turnuvalardan gelir.')}</p>`;
+    else h += `<p class="note">${L('Lab is empty.', 'Laboratuvar boş.')}</p>`;
     h += `</div>`;
     const brs = []; RESEARCH.forEach(r => { if (!brs.includes(N(r.br))) brs.push(N(r.br)); });
     for (const br of brs) {
@@ -249,11 +257,9 @@ const UI = (() => {
   function panelGear() {
     const S = E.get(), meta = S.meta, maxR = E.unlockedRarities();
     const counts = [0, 0, 0, 0, 0]; meta.bags.forEach(t => counts[t]++);
-    let h = `<div class="sec"><h3>${N(CUR.bags)} <span>${meta.bags.length}/${E.bagCap()}</span></h3><div class="bags">${BAGS.map((b, t) => `<button class="bagbtn" style="--cc:${b.col}" data-act="bag" data-v="${t}" ${counts[t] ? '' : 'disabled'}><span class="bagicon2 small" style="--cc:${b.col}"><i></i><b></b></span><b>${N(b)}</b><small>×${counts[t]} · ${b.items} ${L('items', 'parça')}</small></button>`).join('')}</div>
-      <p class="note">${L('Bags come from daily rewards, every 6th hole, world completions, the daily hole, tournaments and achievements. Better bags roll higher rarities.', 'Çantalar günlük ödüllerden, her 6 delikte bir, dünya sonlarından, günlük delikten, turnuvalardan ve başarımlardan gelir. İyi çanta yüksek nadirlik çıkarır.')}</p></div>`;
+    let h = `<div class="sec"><h3>${N(CUR.bags)} <span>${meta.bags.length}/${E.bagCap()}</span></h3><div class="bags">${BAGS.map((b, t) => `<button class="bagbtn" style="--cc:${b.col}" data-act="bag" data-v="${t}" ${counts[t] ? '' : 'disabled'}><span class="bagicon2 small" style="--cc:${b.col}"><i></i><b></b></span><b>${N(b)}</b><small>×${counts[t]} · ${b.items} ${L('items', 'parça')}</small></button>`).join('')}</div></div>`;
     const w = E.rarityWeights(0), tw = w.reduce((a, b) => a + b, 0), w2 = E.rarityWeights(2), tw2 = w2.reduce((a, b) => a + b, 0);
-    h += `<div class="sec"><h3>${L('Rarity odds per item', 'Parça başına nadirlik olasılığı')}</h3><div class="rtable">${RARITY.map((r, i) => `<div class="${i > maxR ? 'locked' : ''}" style="--rc:${r.col}"><b>${N(r)}</b><span>${i > maxR ? L('research', 'araştır') : (w[i] / tw * 100).toFixed(i > 4 ? 2 : 1) + '%'}</span><span>${i > maxR ? '' : (w2[i] / tw2 * 100).toFixed(i > 4 ? 2 : 1) + '%'}</span></div>`).join('')}</div>
-      <p class="note">${L('Columns: Bronze bag, Gold bag. Epic and higher must be researched first (Research → Rarity research).', 'Sütunlar: Bronz çanta, Altın çanta. Epik ve üstü önce araştırılmalı (Araştırma → Nadirlik araştırması).')}</p></div>`;
+    h += `<div class="sec"><h3>${L('Rarity odds per item', 'Parça başına nadirlik olasılığı')} <span>${L('Bronze / Gold bag', 'Bronz / Altın çanta')}</span></h3><div class="rtable">${RARITY.map((r, i) => `<div class="${i > maxR ? 'locked' : ''}" style="--rc:${r.col}"><b>${N(r)}</b><span>${i > maxR ? L('research', 'araştır') : (w[i] / tw * 100).toFixed(i > 4 ? 2 : 1) + '%'}</span><span>${i > maxR ? '' : (w2[i] / tw2 * 100).toFixed(i > 4 ? 2 : 1) + '%'}</span></div>`).join('')}</div></div>`;
     h += `<div class="sec"><h3>${L('Equipped', 'Takılı')} <span>${cur('shards', meta.shards)} · ${L('power', 'güç')} ×${E.gearSum().mult.toFixed(2)}</span></h3><div class="eqgrid">`;
     for (const slot in SLOTS) {
       const id = meta.equip.on[slot];
@@ -273,7 +279,7 @@ const UI = (() => {
           : `<button class="miss" style="--rc:${RARITY[it.rar].col}" disabled title="${N(RARITY[it.rar])}"><span>?</span><small>${N(RARITY[it.rar])}</small></button>`;
       }
     }
-    return h + `</div><p class="note">${L('Click an item to equip it. Duplicates turn into shards; shards upgrade items.', 'Takmak için parçaya tıkla. Kopyalar parçaya (shard) dönüşür; parçalar ekipmanı geliştirir.')}</p></div>`;
+    return h + `</div></div>`;
   }
   function panelLook() {
     const S = E.get(), meta = S.meta, look = meta.looks[lookSel];
@@ -297,45 +303,35 @@ const UI = (() => {
     return h;
   }
   function panelWorlds() {
-    const S = E.get(), meta = S.meta, run = S.run, wi = E.worldOf(run.n), first = wi * WORLD_HOLES + 1;
-    let nums = '', pars = '', scores = '', replays = '';
-    for (let n = first; n < first + WORLD_HOLES; n++) {
-      const b = meta.best[n], par = E.parOf(n), rel = b != null ? b - par : null, cls = rel == null ? '' : rel <= -2 ? 'eagle' : rel === -1 ? 'birdie' : rel === 0 ? '' : rel === 1 ? 'bogey' : 'dbl';
-      const gate = WORLDS[wi].gates.includes(n - first + 1);
-      nums += `<th class="${n === run.n ? 'cur' : ''} ${gate ? 'gate' : ''}">${n - first + 1}</th>`; pars += `<td>${par}</td>`;
-      scores += `<td class="${n === run.n ? 'cur' : ''}"><span class="sc ${cls}">${b != null ? b : n === run.n ? '·' : ''}</span></td>`;
-      if (n < run.n && (meta.stars[n] || 0) < 3) replays += `<button class="pill small" data-act="replay" data-v="${n}">${n - first + 1} · ${U.stars(meta.stars[n] || 0)}</button>`;
-    }
-    let h = `<div class="sec"><h3>${N(WORLDS[wi].name)} · ${L('scorecard', 'skor kartı')} <span>${E.totalStars()} ★</span></h3>
-      <div class="card-scroll"><table class="scorecard"><tr><th>${L('Hole', 'Delik')}</th>${nums}</tr><tr><td>Par</td>${pars}</tr><tr><td>${L('Score', 'Skor')}</td>${scores}</tr></table></div>
-      <p class="note">${L('Highlighted holes are wind gates. Score = shots + bunker/water penalties + putts. Birdie ★★★, par ★★, bogey ★.', 'İşaretli delikler rüzgâr kapısıdır. Skor = vuruşlar + bunker/su cezası + putt. Birdie ★★★, par ★★, bogey ★.')}</p>
-      ${replays ? `<p class="note"><b>${L('Replay a putt to earn missing stars:', 'Eksik yıldız için putt\'u tekrar oyna:')}</b></p><div class="opts">${replays}</div>` : ''}</div>`;
-    h += `<div class="sec"><h3>${L('Worlds (map changes every 24 holes)', 'Dünyalar (harita her 24 delikte değişir)')}</h3><div class="worlds">`;
+    const S = E.get(), run = S.run, wi = E.worldOf(run.n), done = E.holeIn(run.n) - 1, next = WORLDS[wi + 1], have = E.totalStars();
+    let h = `<div class="sec"><h3>${N(WORLDS[wi].name)} <span>${done}/24</span></h3><div class="pbar big"><i style="width:${(done / 24 * 100).toFixed(0)}%"></i></div>
+      ${next ? `<div class="starneed"><b>${have} / ${next.stars} ★</b><span>${L('to open', 'açmak için')} ${N(next.name)}</span></div><div class="pbar big gold"><i style="width:${Math.min(100, have / next.stars * 100).toFixed(0)}%"></i></div>` : ''}
+      <p class="note">${L('Stars only go up: putt well, and staying long on a hole pays bonus ★.', 'Yıldız hep artar: iyi putt at; bir delikte uzun kalmak bonus ★ verir.')}</p></div>`;
+    h += `<div class="sec"><h3>${L('Worlds', 'Dünyalar')}</h3><div class="worlds">`;
     WORLDS.forEach((w, i) => {
-      const state = i < wi ? 'done' : i === wi ? 'cur' : E.totalStars() >= w.stars ? 'ready' : 'locked';
-      h += `<div class="world ${state}" style="--w1:${w.sky[0]};--w2:${w.grass[0]}"><div class="wbg"></div><div class="wtx"><b>${i + 1}. ${N(w.name)}</b><small>${N(w.desc)}</small>
-        <span>${w.stars} ★ · ${N(w.windName)} ${w.wind}–${w.wind + w.step * w.gates.length} km/h · ${L('terrain', 'zemin')} +${w.terrain}${w.heat < 1 ? ' · ' + L('heat', 'sıcak') + ' ×' + w.heat : ''}${w.gravity < 1 ? ' · ' + w.gravity + 'g' : ''}</span></div>
+      const state = i < wi ? 'done' : i === wi ? 'cur' : have >= w.stars ? 'ready' : 'locked';
+      h += `<div class="world ${state}" style="--w1:${w.sky[0]};--w2:${w.grass[0]}"><div class="wbg"></div><div class="wtx"><b>${i + 1}. ${N(w.name)}</b>
+        <span>${N(w.windName)} ${w.wind}–${w.wind + w.step * w.gates.length} km/h${w.heat < 1 ? ' · ' + L('heat', 'sıcak') : ''}${w.gravity < 1 ? ' · ' + w.gravity + 'g' : ''}</span></div>
         <em>${state === 'done' ? '🏆' : state === 'cur' ? L('HERE', 'BURADASIN') : state === 'ready' ? L('READY', 'HAZIR') : '🔒 ' + w.stars + '★'}</em></div>`;
     });
     return h + `</div></div>`;
   }
   function panelCompete() {
-    const S = E.get(), meta = S.meta, dh = Tour.dailyHole(meta.daily.day), G = E.tourG(), lg = E.league(G), open = S.run.n > 9;
+    const S = E.get(), meta = S.meta, dh = Tour.dailyHole(meta.daily.day), lg = E.league(E.tourG()), open = S.run.n > 9;
     const ready = E.dailyReady(), idx = meta.rewards.idx % DAILY.length;
-    let h = `<div class="sec"><h3>${L('Daily rewards', 'Günlük ödüller')} <span>${L('missing a day loses nothing', 'gün kaçırınca bir şey kaybolmaz')}</span></h3><div class="daily">${DAILY.map((d, i) => `<div class="${i < idx ? 'got' : i === idx ? 'next' : ''}"><b>${L('Day', 'Gün')} ${i + 1}</b><small>${E.rewardText(d)}</small></div>`).join('')}</div>
-      <button class="btn gold" data-act="claimDaily" ${ready ? '' : 'disabled'}>${ready ? L('Claim today\'s reward', 'Bugünün ödülünü al') : L('Come back tomorrow (game day)', 'Yarın gel (oyun günü)')}</button></div>`;
-    h += `<div class="sec"><h3>${L('Daily hole', 'Günlük delik')} <span>${L('hard', 'zor')}</span></h3><div class="card"><p class="note"><b>Par ${dh.par} · ${dh.len} yd · ${dh.wind.kmh} km/h</b> · ${L('try', 'deneme')} ${meta.daily.tries}/3 · ${L('best', 'en iyi')} <b>${meta.daily.best == null ? '—' : fmtRel(meta.daily.best)}</b></p>
-      <p class="note">${L('Everyone plays the same hole today. You see your rank among 2,000 players and get a bag by rank.', 'Bugün herkes aynı deliği oynar. 2 000 oyuncu içindeki sıranı görür, sıraya göre çanta alırsın.')}</p>
-      <button class="btn primary" data-act="daily" ${meta.daily.tries >= 3 ? 'disabled' : ''}>${L('Play the daily hole', 'Günlük deliği oyna')}</button></div></div>`;
-    h += `<div class="sec"><h3>${L('Weekly tournament', 'Haftalık turnuva')} <span>9 ${L('holes', 'delik')}</span></h3><div class="card"><p class="note">${L('League', 'Lig')} <b>${lg.name}</b> · G ${Math.round(G)} · ${L('round', 'tur')} ${meta.tour.tries}/3 · ${L('best', 'en iyi')} <b>${meta.tour.best == null ? '—' : fmtRel(meta.tour.best)}</b></p>
-      <button class="btn gold" data-act="tour" ${!open || meta.tour.tries >= 3 ? 'disabled' : ''}>${open ? L('Play a tournament round', 'Turnuva turu oyna') : L('Opens after hole 9', 'Delik 9\'dan sonra açılır')}</button>
-      <button class="btn" data-act="practice">${L('Practice range', 'Antrenman sahası')}</button></div></div>`;
+    let h = `<div class="sec"><h3>${L('Daily rewards', 'Günlük ödüller')}</h3><div class="daily">${DAILY.map((d, i) => `<div class="${i < idx ? 'got' : i === idx ? 'next' : ''}"><b>${L('Day', 'Gün')} ${i + 1}</b><small>${E.rewardText(d)}</small></div>`).join('')}</div>
+      <button class="btn gold" data-act="claimDaily" ${ready ? '' : 'disabled'}>${ready ? L('Claim', 'Al') : L('Tomorrow', 'Yarın')}</button></div>`;
+    h += `<div class="sec"><h3>${L('Daily hole', 'Günlük delik')} <span>${meta.daily.tries}/3 · ${L('best', 'en iyi')} ${meta.daily.best == null ? '—' : fmtRel(meta.daily.best)}</span></h3>
+      <button class="btn primary big-btn" data-act="daily" ${meta.daily.tries >= 3 ? 'disabled' : ''}>${L('Play', 'Oyna')} · Par ${dh.par} · ${dh.len} yd</button></div>`;
+    h += `<div class="sec"><h3>${L('Weekly tournament', 'Haftalık turnuva')} <span>${lg.name} · ${meta.tour.tries}/3 · ${L('best', 'en iyi')} ${meta.tour.best == null ? '—' : fmtRel(meta.tour.best)}</span></h3>
+      <button class="btn gold big-btn" data-act="tour" ${!open || meta.tour.tries >= 3 ? 'disabled' : ''}>${open ? L('Play 9 holes', '9 delik oyna') : L('Opens after hole 9', 'Delik 9\'dan sonra')}</button>
+      <button class="btn" data-act="practice">${L('Practice', 'Antrenman')}</button></div>`;
     return h;
   }
   function panelAwards() {
-    const S = E.get(), meta = S.meta, n = E.achCount();
-    let h = `<div class="sec"><h3>${L('Achievements', 'Başarımlar')} <span>${n}/${ACH.length} · ${L('bonus', 'bonus')} +${Math.min(10, Math.floor(n / 10))}%</span></h3><p class="note">${L('Every 10 achievements give +1% distance (max +10%). Rewards are paid automatically.', 'Her 10 başarım +%1 mesafe verir (en fazla +%10). Ödüller otomatik verilir.')}</p><div class="achs">`;
-    for (const a of ACH) { const done = !!meta.ach[a.id]; h += `<div class="ach ${done ? 'done' : ''}"><b>${done ? '🏆' : '·'}</b><div><span>${N(a.name)}</span><small>${E.rewardText(a.reward)}</small></div></div>`; }
+    const meta = E.get().meta, n = E.achCount();
+    let h = `<div class="sec"><h3>${L('Achievements', 'Başarımlar')} <span>${n}/${ACH.length} · +${Math.min(10, Math.floor(n / 10))}% ${L('distance', 'mesafe')}</span></h3><div class="achs">`;
+    for (const a of ACH) { const d = !!meta.ach[a.id]; h += `<div class="ach ${d ? 'done' : ''}"><b>${d ? '🏆' : '·'}</b><div><span>${N(a.name)}</span><small>${E.rewardText(a.reward)}</small></div></div>`; }
     return h + `</div></div>`;
   }
   function panelDev() {
@@ -389,7 +385,6 @@ const UI = (() => {
       case 'look': S.meta.looks[lookSel][btn.dataset.cat] = v; break;
       case 'worldOutfit': S.meta.worldOutfit = btn.checked; break;
       case 'trail': S.meta.trail = v; break;
-      case 'replay': openReplay(+v); break;
       case 'claimDaily': { const rw = E.claimDaily(); if (rw) { toast(L('Daily reward: ', 'Günlük ödül: ') + E.rewardText(rw), 'gold'); ping('sBagBtn'); } break; }
       case 'daily': Tour.start('daily'); break;
       case 'practice': Tour.start('practice'); break;
@@ -409,6 +404,55 @@ const UI = (() => {
   }
   function refreshAll() { renderPanel(true); }
 
+  // ---------- coach: finds the biggest bottleneck and says the one thing to do next ----------
+  const upName = k => k[0] === 'h' && /^h\d+$/.test(k) ? L('Helper ', 'Yardımcı ') + (+k.slice(1) + 1) : N(CFG.up[k].name);
+  function coachTip() {
+    const S = E.get(), run = S.run, meta = S.meta, w = E.world();
+    const resOpen = id => { const r = RESEARCH.find(x => x.id === id); return r && E.resState(r) === 'open' && meta.res.q.length < E.resSlots() && E.canPay(r.cost(E.res(id))); };
+    if (run.locked) return { c: 'sam', t: L(`${w.stars - E.totalStars()} more ★ to open ${N(w.name)}. Staying on a hole pays bonus ★ (20 and 60 min); one-putts earn more.`, `${N(w.name)} için ${w.stars - E.totalStars()} ★ daha lazım. Bir delikte kalmak bonus ★ verir (20 ve 60 dk); tek putt daha çok kazandırır.`), go: 'worlds' };
+    if (E.gateBlocked()) {
+      const gap = E.holeWind() - E.windControl();
+      const fix = resOpen('windr') ? [L('Research Wind reading (+6)', 'Rüzgâr okuma araştır (+6)'), 'res']
+        : E.quote('accuracy', 1).cost <= run.yards ? [L('Buy Accuracy training', 'İsabet antrenmanı al'), 'buy:accuracy']
+        : run.hitters.some(h => !h.type) || (meta.medals >= HELPER_SWITCH_COST && !run.hitters.some(h => h.type === 'acc')) ? [L('Make a helper Accurate', 'Bir yardımcıyı İsabetli yap'), 'team']
+        : meta.bags.length ? [L('Open bags for grips and balls', 'Sap ve top için çanta aç'), 'gear'] : [L('Collect Data and Medals in Compete', 'Yarış\'ta Veri ve Madalya topla'), 'compete'];
+      return { c: 'ada', t: L(`Wind gate: you need ${gap} more wind control. ${fix[0]}.`, `Rüzgâr kapısı: ${gap} rüzgâr kontrolü daha lazım. ${fix[0]}.`), go: fix[1] };
+    }
+    if (E.dailyReady()) return { c: 'iris', t: L('Your daily reward is ready.', 'Günlük ödülün hazır.'), go: 'compete' };
+    const idle = run.hitters.findIndex(h => !h.type);
+    if (idle >= 0) return { c: 'sam', t: L(`Pick a specialty for Helper ${idle + 1}: Power, Accuracy or Tempo.`, `Yardımcı ${idle + 1} için uzmanlık seç: Güç, İsabet ya da Tempo.`), go: 'team' };
+    if (meta.bags.length) return { c: 'iris', t: L(`You have ${meta.bags.length} unopened gear bag${meta.bags.length > 1 ? 's' : ''}.`, `${meta.bags.length} açılmamış çantan var.`), go: 'gear' };
+    if (E.windMul() < 0.8) return { c: 'ada', t: L(`Wind costs you ${Math.round((1 - E.windMul()) * 100)}% of your distance. Raise wind control.`, `Rüzgâr mesafenin %${Math.round((1 - E.windMul()) * 100)}'ini götürüyor. Rüzgâr kontrolünü artır.`), go: 'team' };
+    if (E.heatF() < 0.9 && resOpen('cool')) return { c: 'iris', t: L('Heat slows your helpers. Research Cooling.', 'Sıcak yardımcılarını yavaşlatıyor. Soğutma araştır.'), go: 'res' };
+    if (E.expLie() < 0.8) return { c: 'ada', t: L(`Bad lies cost you ${Math.round((1 - E.expLie()) * 100)}%. Train Accuracy.`, `Kötü zemin %${Math.round((1 - E.expLie()) * 100)} kaybettiriyor. İsabet çalış.`), go: 'buy:accuracy' };
+    const firstFree = RESEARCH.find(r => resOpen(r.id));
+    if (firstFree && !meta.res.q.length) return { c: 'iris', t: L(`The lab is idle. Start ${N(firstFree.name)}.`, `Laboratuvar boşta. ${N(firstFree.name)} başlat.`), go: 'res' };
+    const rankable = run.hitters.findIndex(h => h.type && h.rank < HELPER_RANK_MAX && meta.medals >= helperRankCost(h.rank));
+    if (rankable >= 0) return { c: 'sam', t: L(`You can train Helper ${rankable + 1} to rank ${run.hitters[rankable].rank + 1}.`, `Yardımcı ${rankable + 1}'i ${run.hitters[rankable].rank + 1}. kademeye çıkarabilirsin.`), go: 'team' };
+    const b = E.bestUpgrade();
+    if (b) {
+      const pct = Math.max(1, Math.round(b.gainPct * 100)), wait = (b.cost - run.yards) / Math.max(1e-9, E.autoIncome());
+      return { c: 'bruno', t: b.ok ? L(`Best buy now: ${upName(b.key)} (+${pct}% income).`, `Şu an en iyi alım: ${upName(b.key)} (+%${pct} gelir).`) : L(`Save for ${upName(b.key)} (+${pct}%) in ${U.fmtTime(wait)}.`, `${upName(b.key)} için biriktir (+%${pct}), ${U.fmtTime(wait)} sonra.`), go: b.ok ? 'buy:' + b.key : 'up' };
+    }
+    return null;
+  }
+  let lastCoach = '';
+  function renderCoach() {
+    const tip = coachTip(), el = $('coach');
+    if (!tip) { el.hidden = true; return; }
+    el.hidden = false;
+    const key = tip.c + tip.t + tip.go;
+    if (key === lastCoach) return;
+    lastCoach = key;
+    const co = COACHES[tip.c], btn = tip.go.startsWith('buy:') ? L('Buy', 'Al') : L('Go', 'Git');
+    el.innerHTML = `<canvas class="face" width="88" height="88"></canvas><div><b>${co.name}</b><span>${tip.t}</span></div><button class="btn gold mini-btn" data-coach="${tip.go}">${btn}</button>`;
+    const cv = el.querySelector('canvas'), ctx = cv.getContext('2d');
+    ctx.fillStyle = co.look.shirt; ctx.beginPath(); ctx.arc(44, 44, 44, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.arc(44, 44, 42, 0, Math.PI * 2); ctx.clip();
+    Art.golfer(ctx, 29, 44 + 57 * 2.1, 2.1, Object.assign({ pants: '#2a2f3a', club: 'chrome' }, co.look), -1);
+    ctx.restore();
+  }
+
   // ---------- HUD ----------
   function hud() {
     const S = E.get(), run = S.run, meta = S.meta, rates = shareRates(), w = E.world();
@@ -419,7 +463,7 @@ const UI = (() => {
     $('worldName').textContent = `${L('World', 'Dünya')} ${E.worldOf(run.n) + 1} · ${N(w.name)}`;
     const len = E.holeLen(run.n), par = E.parOf(run.n), S2 = E.segCount(run.n);
     $('holeTitle').innerHTML = `${L('Hole', 'Delik')} <em>${E.holeIn(run.n)}</em>/24 · Par ${par}${E.gateIdx() >= 0 ? ` <span class="gatetag">${L('WIND GATE', 'RÜZGÂR KAPISI')}</span>` : ''}`;
-    $('holeMeta').innerHTML = `${L('Strokes', 'Vuruş')} <b>${run.shot.strokes}</b> · ${E.greenPhase() ? L('on the green', 'yeşilde') : L(`shot ${Math.min(run.shot.k + 1, S2)} of ${S2} to the green`, `yeşile ${S2} vuruştan ${Math.min(run.shot.k + 1, S2)}.`)} · ${U.fmt(len)} yd · #${run.n}`;
+    $('holeMeta').innerHTML = `${L('Strokes', 'Vuruş')} <b>${run.shot.strokes}</b> · ${E.greenPhase() ? L('on the green', 'yeşilde') : L(`shot ${Math.min(run.shot.k + 1, S2)} of ${S2} to the green`, `yeşile ${S2} vuruştan ${Math.min(run.shot.k + 1, S2)}.`)} · ${U.fmt(len)} yd · ⏱ ${U.fmtTime(run.holeTime)}${E.patienceNext() != null ? L(` (+★ in ${U.fmtTime(E.patienceNext())})`, ` (+★ ${U.fmtTime(E.patienceNext())} sonra)`) : ''}`;
     let strip = ''; const first = E.worldOf(run.n) * WORLD_HOLES + 1;
     for (let n = first; n < first + WORLD_HOLES; n++) { const st = meta.stars[n], gate = w.gates.includes(n - first + 1); strip += `<div class="${n === run.n ? 'cur' : n < run.n ? 'past' : ''} ${gate ? 'gate' : ''}"><span>${n - first + 1}</span><b>${n < run.n ? '★'.repeat(st || 0) + '<i>' + '★'.repeat(3 - (st || 0)) + '</i>' : E.parOf(n)}</b></div>`; }
     if ($('courseStrip').dataset.h !== strip) { $('courseStrip').innerHTML = strip; $('courseStrip').dataset.h = strip; }
@@ -437,7 +481,7 @@ const UI = (() => {
     if ($('reqLine').dataset.h !== req) { $('reqLine').innerHTML = req; $('reqLine').dataset.h = req; $('reqLine').className = 'reqline' + (blocked || run.locked ? ' alert' : ''); }
     if (blocked && !wasBlocked) Stage.banner(L('WIND GATE', 'RÜZGÂR KAPISI'), L(`${E.holeWind()} km/h · you have ${wc} wind control`, `${E.holeWind()} km/s · rüzgâr kontrolün ${wc}`), '#ff9a8a', 3);
     wasBlocked = blocked;
-    $('pEta').textContent = run.locked ? '' : blocked ? L('Blocked by the wind', 'Rüzgâr geçit vermiyor') : E.greenPhase() ? (run.prog >= len ? L(`On the green · ${Math.max(0, Math.ceil(CFG.greenGrace - run.greenWait))}s until 2 putts`, `Yeşilde · ${Math.max(0, Math.ceil(CFG.greenGrace - run.greenWait))} sn sonra 2 putt`) : L('Green: play the putt', 'Yeşil: putt oyna')) : L(`Next shot in ~${U.fmtTime((E.segBoundary(run.shot.k + 1) - run.prog) / Math.max(1e-9, inc) / Math.max(1, speed))}`, `Sonraki vuruşa ~${U.fmtTime((E.segBoundary(run.shot.k + 1) - run.prog) / Math.max(1e-9, inc) / Math.max(1, speed))}`);
+    $('pEta').textContent = run.locked ? '' : blocked ? L('Blocked by the wind', 'Rüzgâr geçit vermiyor') : E.greenPhase() ? (run.prog >= len ? L(`On the green · ${Math.max(0, Math.ceil(CFG.greenGrace - run.greenWait))}s until 2 putts`, `Yeşilde · ${Math.max(0, Math.ceil(CFG.greenGrace - run.greenWait))} sn sonra 2 putt`) : L('Green: play the putt', 'Yeşil: putt oyna')) : (eta => eta > 86400 * 3 ? L('Very slow here: follow the coach tip', 'Burada çok yavaş: koçun ipucuna bak') : L(`Next shot in ~${U.fmtTime(eta)}`, `Sonraki vuruşa ~${U.fmtTime(eta)}`))((E.segBoundary(run.shot.k + 1) - run.prog) / Math.max(1e-9, inc) / Math.max(1, speed));
     const lie = E.curLie(), tm = E.terrainMult(lie), o = E.landingOdds();
     $('lieV').innerHTML = `<span class="${tm < 0.95 ? 'bad' : 'good'}">${N(TERRAIN[lie])} ×${tm.toFixed(2)}</span> <small>${L('Accuracy', 'İsabet')} ${E.accuracy()} / ${L('terrain', 'zemin')} ${E.terrainDiff()}</small>`;
     $('lieOdds').innerHTML = ['fairway', 'rough', 'bunker', 'water'].filter(k => o[k] > 0).map(k => `<i style="flex:${o[k]};background:${TERRAIN_COL[k]}" title="${N(TERRAIN[k])} ${Math.round(o[k] * 100)}%">${o[k] > 0.08 ? N(TERRAIN[k]) + ' ' + Math.round(o[k] * 100) + '%' : ''}</i>`).join('');
@@ -483,7 +527,7 @@ const UI = (() => {
     ring.sub = ring.pdReady ? 'DRIVE' : S.run.streak > 0 ? '×' + E.streakMult().toFixed(2) : L('SPACE / CLICK', 'BOŞLUK / TIKLA');
     ring.draw();
     Stage.update(dtR); viewA.draw(); viewB.draw(); HoleMap.draw();
-    hud();
+    hud(); renderCoach();
     if (tab === 'look') { previewT = (previewT + dtR / 1.6) % 1.6; const cv = $('lookPreview'); const wi = lookWorld < 0 ? E.worldOf(S.run.n) : lookWorld; cv && Art.preview(cv, S.meta.looks[lookSel], WORLDS[wi], S.meta.worldOutfit, previewT < 1 ? previewT : -1); }
     panelTimer += dtR; if (panelTimer > 0.4) { panelTimer = 0; renderPanel(false); }
     saveTimer += dtR; if (saveTimer > 10) { saveTimer = 0; save(); }
@@ -511,7 +555,7 @@ const UI = (() => {
     ring = new Ring($('ring'));
     viewA = makeSideView($('sceneA')); viewB = makeRangeView($('sceneB'));
     Stage.views.push(viewA, viewB); Stage.sync();
-    HoleMap.init($('holemap')); Putt.init(); Tour.init();
+    HoleMap.init($('holemap')); Putt.init(); Tour.init(); Escape.init();
     window.addEventListener('resize', () => { viewA.resize(); viewB.resize(); });
     for (const v of [viewA, viewB]) v.cv.addEventListener('pointerdown', e => {
       const r = v.cv.getBoundingClientRect(), [nx, ny, W, H] = v.toNorm(e.clientX - r.left, e.clientY - r.top);
@@ -526,6 +570,8 @@ const UI = (() => {
     $('skipBtn').addEventListener('click', skipModal);
     $('helpBtn').addEventListener('click', help);
     $('reqLine').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) setTab(b.dataset.go); });
+    $('coach').addEventListener('click', e => { const b = e.target.closest('[data-coach]'); if (!b) return; const g = b.dataset.coach; if (g.startsWith('buy:')) { E.buy(g.slice(4), 1); lastCoach = ''; renderPanel(true); } else setTab(g); });
+    for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { lastInput = performance.now(); }, true);
     $('speed').addEventListener('click', e => { const b = e.target.closest('[data-speed]'); if (!b) return; speed = +b.dataset.speed; document.querySelectorAll('#speed [data-speed]').forEach(x => x.classList.toggle('on', x === b)); });
     $('viewBtn').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view); });
     $('langBtn').addEventListener('click', e => { const b = e.target.closest('[data-lang]'); if (b) { E.get().settings.lang = b.dataset.lang; applyLang(); } });
@@ -546,6 +592,7 @@ const UI = (() => {
       e.preventDefault();
       if (document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
       if (e.repeat) return;
+      if (Escape.isOpen()) { Escape.press(); return; }
       if (Putt.isOpen()) { Putt.release(); return; }
       if (Tour.isOpen()) { Tour.press(); return; }
       swing();

@@ -121,6 +121,21 @@ const Stage = (() => {
   return { views, sync, update, onSwingPlayer, banner, drawGold, hitGold, lookOf, golfers: () => golfers, spawnGold: () => { goldTimer = 0; } };
 })();
 
+
+// top-left status pill shared by both views: hole, progress % and the lie in plain words
+function statusPill(ctx, lie) {
+  const run = E.get().run, p = Math.min(1, run.prog / E.holeLen(run.n)), tm = E.terrainMult(lie), pct = Math.round((tm - 1) * 100);
+  const parts = [`${L('HOLE', 'DELİK')} ${E.holeIn(run.n)} · ${Math.floor(p * 100)}%`, `${N(E.hazardName(lie)).toUpperCase()}${pct ? ' ' + (pct > 0 ? '+' : '') + pct + '%' : ''}`];
+  ctx.save(); ctx.font = '800 14px "Barlow Condensed", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  let x = 10;
+  parts.forEach((t, i) => {
+    const w = ctx.measureText(t).width + 16;
+    ctx.fillStyle = i === 1 ? (pct < 0 ? 'rgba(170,45,30,0.9)' : pct > 0 ? 'rgba(40,120,50,0.9)' : 'rgba(8,30,22,0.8)') : 'rgba(8,30,22,0.8)';
+    ctx.fillRect(x, 10, w, 24); ctx.fillStyle = '#fff'; ctx.fillText(t, x + 8, 22.5); x += w + 4;
+  });
+  ctx.restore();
+}
+
 // ---------- view A: side view ----------
 function makeSideView(cv) {
   const ctx = cv.getContext('2d');
@@ -215,6 +230,7 @@ function makeSideView(cv) {
       for (const q of pops) { ctx.globalAlpha = 1 - q.t / 1.3; ctx.font = `700 ${q.big ? 20 : 12}px "Barlow Condensed", sans-serif`; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,40,25,0.55)'; ctx.strokeText(q.text, q.x, q.y - q.t * 30); ctx.fillStyle = q.color; ctx.fillText(q.text, q.x, q.y - q.t * 30); }
       ctx.globalAlpha = 1;
       Stage.drawGold(ctx, W, H);
+      statusPill(ctx, E.curLie());
       if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(-20, -20, W + 40, H + 40); }
       ctx.restore();
     },
@@ -257,11 +273,6 @@ function makeSideView(cv) {
     else if (lie === 'bunker') { ctx.strokeStyle = 'rgba(120,90,40,0.3)'; ctx.lineWidth = 1.2; for (let y = py + 6; y < H; y += 7) { ctx.beginPath(); ctx.moveTo(0, y); for (let x = 0; x < px + 40; x += 20) ctx.quadraticCurveTo(x + 5, y - 2, x + 10, y); ctx.stroke(); } }
     else if (lie === 'tee') { ctx.fillStyle = 'rgba(255,255,255,0.12)'; for (let x = 0; x < px + 40; x += 36) ctx.fillRect(x, py, 18, H); ctx.fillStyle = '#d6281e'; ctx.beginPath(); ctx.arc(px - 30, py + 18, 4, 0, Math.PI * 2); ctx.arc(30, py + 18, 4, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();
-    const tm = E.terrainMult(lie), label = `${N(TERRAIN[lie]).toUpperCase()} ×${tm.toFixed(2)}`;
-    ctx.font = '800 15px "Barlow Condensed", sans-serif'; ctx.textAlign = 'left';
-    const tw = ctx.measureText(label).width;
-    ctx.fillStyle = tm < 0.95 ? 'rgba(160,40,30,0.85)' : 'rgba(8,30,22,0.75)'; ctx.fillRect(10, H - 30, tw + 16, 22);
-    ctx.fillStyle = '#fff'; ctx.fillText(label, 18, H - 13);
   }
   function greenFlag(p, holeNo, w) {
     if (p < 0.7) return;
@@ -320,7 +331,7 @@ function makeRangeView(cv) {
       const apex = Math.min(42, (e.auto ? carry * 0.11 : rs.height / 3) * (e.pd ? 1.2 : 1));
       const T = (1.2 + carry / 200) * low;
       const b = { x0: p.x + 0.4, z0: p.z + 0.5, x1: p.x + drift, z1: carry, apex, T, t: 0, state: 'fly', col: g.col, e, rs, fade: 1, roll: e.auto ? carry * 0.08 : rs.total - rs.carry, player: !e.auto };
-      balls.push(b);
+      b.g = g; balls = balls.filter(x => x.g !== g); balls.push(b);
       if (b.player) { lastPlayer = b; labels = [{ kind: 'speed', b, t: 0 }]; }
       if (balls.length > 60) balls.shift();
     },
@@ -383,11 +394,6 @@ function makeRangeView(cv) {
         ctx.fillStyle = g.col; ctx.fillRect(bx - 4 * sc, by - 26 * sc, 9 * sc, 26 * sc);
         ctx.fillStyle = '#1d2024'; ctx.fillRect(bx - 4 * sc, by - 26 * sc, 9 * sc, 4 * sc);
         ctx.strokeStyle = '#ccd'; ctx.lineWidth = Math.max(1, sc); for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(bx - 2 * sc + k * 2.5 * sc, by - 26 * sc); ctx.lineTo(bx - 3 * sc + k * 3 * sc, by - 33 * sc); ctx.stroke(); }
-        // launch monitor
-        ctx.fillStyle = '#222'; ctx.fillRect(base[0] + 30 * sc, by - 22 * sc, 1.5 * sc, 22 * sc); ctx.fillRect(base[0] + 27 * sc, by - 26 * sc, 8 * sc, 5 * sc);
-        ctx.fillStyle = '#ffb000'; ctx.fillRect(base[0] + 28 * sc, by - 25 * sc, 6 * sc, 3 * sc);
-        // ball pile
-        ctx.fillStyle = '#fff'; for (let k = 0; k < 5; k++) { ctx.beginPath(); ctx.arc(base[0] + 14 * sc + (k % 3) * 2.2 * sc, by - (k > 2 ? 2 : 0) * sc, 1.3 * sc, 0, Math.PI * 2); ctx.fill(); }
         if (g.player || (h && h.L > 0)) Art.golfer(ctx, base[0], base[1], sc * 1.0, Stage.lookOf(g), g.t, { ball: true, glow: g.player && run.pd >= 100, badge: h && h.type ? HELPER_TYPES[h.type].col : null });
         if (g.player) { ctx.fillStyle = '#fff'; ctx.font = `800 ${Math.round(11 + sc * 4)}px "Barlow Condensed", sans-serif`; ctx.textAlign = 'center'; ctx.fillText(L('YOU', 'SEN'), base[0], base[1] + 16 * sc); }
       }
@@ -408,6 +414,7 @@ function makeRangeView(cv) {
         ctx.fillText(run.locked ? L('WORLD LOCKED', 'DÜNYA KİLİTLİ') : L('WIND GATE', 'RÜZGÂR KAPISI'), W / 2, hz * 0.6);
       }
       Stage.drawGold(ctx, W, H);
+      statusPill(ctx, E.curLie());
     },
     toNorm(x, y) { return [x / W, y / H, W, H]; },
   };
@@ -416,12 +423,12 @@ function makeRangeView(cv) {
   function flightPt(b, u) { return proj(U.lerp(b.x0, b.x1, u), 4 * b.apex * u * (1 - u), U.lerp(b.z0, b.z1, u)); }
   function drawFlight(b) {
     const u = b.state === 'fly' ? Math.min(1, b.t / b.T) : 1;
-    ctx.globalAlpha = Math.max(0, b.fade) * (b.player ? 1 : 0.75);
+    ctx.globalAlpha = Math.max(0, b.fade) * (b.player ? 1 : 0.5);
     ctx.strokeStyle = b.e.pd ? '#ff8a3d' : b.col; ctx.lineCap = 'round';
     const n = 28; let prev = flightPt(b, 0);
     for (let i = 1; i <= n; i++) {
       const uu = u * i / n, p = flightPt(b, uu);
-      ctx.lineWidth = Math.max(1, (b.player ? 4 : 2.2) * Math.min(1, p[2] / 20 + 0.25));
+      ctx.lineWidth = Math.max(1, (b.player ? 4 : 1.6) * Math.min(1, p[2] / 20 + 0.25));
       ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(p[0], p[1]); ctx.stroke(); prev = p;
     }
     let bp = prev;

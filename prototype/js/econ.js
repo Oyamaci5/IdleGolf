@@ -3,11 +3,12 @@
 const CFG = {
   up: {
     power:     { name: { en: 'Power training', tr: 'Güç antrenmanı' }, base: 10, g: 1.24, max: 5000, unlock: 0 },
-    timing:    { name: { en: 'Timing', tr: 'Zamanlama' }, base: 60, g: 1.28, max: 45, unlock: 0 },
+    // no level caps: past their soft limit timing raises the perfect multiplier, stance and clubhouse keep growing
+    timing:    { name: { en: 'Timing', tr: 'Zamanlama' }, base: 60, g: 1.28, max: 5000, unlock: 0 },
     accuracy:  { name: { en: 'Accuracy training', tr: 'İsabet antrenmanı' }, base: 150, g: 2.2, max: 5000, unlock: 0 },
     ball:      { name: { en: 'Ball tech', tr: 'Top teknolojisi' }, base: 400, g: 1.30, max: 5000, unlock: 6 },
-    stance:    { name: { en: 'Stance', tr: 'Duruş' }, base: 200, g: 1.35, max: 30, unlock: 3 },
-    clubhouse: { name: { en: 'Clubhouse', tr: 'Kulüp evi' }, base: 2e7, g: 12, max: 4, unlock: 12 },
+    stance:    { name: { en: 'Stance', tr: 'Duruş' }, base: 200, g: 1.35, max: 5000, unlock: 3 },
+    clubhouse: { name: { en: 'Clubhouse', tr: 'Kulüp evi' }, base: 2e7, g: 12, max: 5000, unlock: 12 },
   },
   hitter: { base: 25, g: 1.24, max: 5000, slotMult: 1.5 },
   milestoneEvery: 25, milestoneMult: 1.5,
@@ -19,7 +20,7 @@ const CFG = {
 
 const E = (() => {
   let S = null;
-  const hooks = { hole() {}, toast() {}, shot() {}, item() {}, ach() {}, gate() {}, world() {} };
+  const hooks = { hole() {}, toast() {}, shot() {}, item() {}, ach() {}, gate() {}, world() {}, hazard: null, patience() {} };
   const rnd = Math.random;
   let silent = false;
 
@@ -32,7 +33,7 @@ const E = (() => {
     const looks = { p: defaultLook(-1) };
     for (let i = 0; i < 10; i++) looks['h' + i] = defaultLook(i);
     return {
-      stars: {}, best: {}, shots: {}, data: 0, shards: 0, medals: 0,
+      stars: {}, bonusStars: {}, best: {}, shots: {}, data: 0, shards: 0, medals: 0,
       res: { lv: {}, q: [] }, skills: { pd: 1, focus: 0, tempo: 0, shield: 0 },
       equip: { owned: {}, on: { head: null, shaft: null, grip: null, ball: null }, seen: {} },
       bags: [0], bagsLost: 0, pity: 0, ach: {}, looks, worldOutfit: true, trail: 'white',
@@ -48,7 +49,7 @@ const E = (() => {
       up: { power: 0, timing: 0, accuracy: 0, ball: 0, stance: 0, clubhouse: 0 },
       hitters: [{ L: 1, type: 'fast', rank: 0 }], streak: 0, streakIdle: 0, pd: 0, greenWait: 0,
       tempoUntil: -1, tempoCd: -1, focusUntil: -1, focusCd: -1, shieldUntil: -1, shieldCd: -1, goldUntil: -1,
-      shot: { k: 0, strokes: 0, lands: [] },
+      shot: { k: 0, strokes: 0, lands: [] }, holeTime: 0, hazard: null,
     };
   }
   function fresh() {
@@ -77,6 +78,8 @@ const E = (() => {
   const ballMult = L => (1 + 0.08 * L) * Math.pow(1.5, Math.floor(L / 10));
   const holeMult = (n = S.run.n) => Math.pow(CFG.holeMult, n - 1);
   const pPerfect = () => Math.min(0.5, 0.05 + 0.01 * S.run.up.timing);
+  // timing past 45 levels keeps paying off through a bigger perfect multiplier
+  const critMult = () => CFG.perfectMult + 0.02 * Math.max(0, S.run.up.timing - 45);
 
   // ---------- gear ----------
   const itemById = id => ITEMS.find(i => i.id === id);
@@ -110,7 +113,7 @@ const E = (() => {
   function helperAcc() { return S.run.hitters.reduce((a, h) => a + (h.L > 0 && h.type ? helperMods(h).acc : 0), 0); }
   const accuracy = () => S.run.up.accuracy + gearSum().acc + helperAcc() + 3 * res('acc');
   const windControl = () => Math.round(5 + 0.5 * accuracy() + 6 * res('windr') + gearSum().wc);
-  const totalStars = () => Object.values(S.meta.stars).reduce((a, b) => a + b, 0);
+  const totalStars = () => Object.values(S.meta.stars).reduce((a, b) => a + b, 0) + Object.values(S.meta.bonusStars || {}).reduce((a, b) => a + b, 0);
   const trophies = (n = S.run.n) => worldOf(n);
   const achCount = () => Object.keys(S.meta.ach).length;
   const mTrophy = () => Math.pow(CFG.trophyMult, trophies());
@@ -186,6 +189,8 @@ const E = (() => {
       sh.lands.push(land); sh.k++;
       sh.strokes += 1 + (land === 'bunker' || land === 'water' ? 1 : 0);
       if (!silent) hooks.shot({ k: sh.k, land, last, n: run.n });
+      // an active player gets an escape mini game; away from the game the penalty simply applies
+      if (!silent && (land === 'bunker' || land === 'water') && hooks.hazard && hooks.hazard({ k: sh.k, land })) run.hazard = { k: sh.k, land, n: run.n };
     }
   }
 
@@ -200,7 +205,17 @@ const E = (() => {
   function helperRate(h) { if (!h.L) return 0; const m = h.type ? helperMods(h) : { rate: 1 }; return 0.4 * h.L * msMult(h.L) * m.rate * rateBoost(); }
   function helperValue(h) { return h.type ? helperMods(h).value : 1; }
   const autoRate = () => S.run.hitters.reduce((a, h) => a + helperRate(h), 0);
-  const swingDist = () => baseDist() * (1 + pPerfect() * (CFG.perfectMult - 1)) * windMul();
+  const swingDist = () => baseDist() * (1 + pPerfect() * (critMult() - 1)) * windMul();
+  // escape mini game result: success removes the penalty stroke and moves the ball out
+  function resolveHazard(ok) {
+    const h = S.run.hazard; S.run.hazard = null;
+    if (!h || !ok) return;
+    const sh = S.run.shot;
+    if (h.n !== S.run.n || sh.lands[h.k - 1] !== h.land) return;
+    sh.lands[h.k - 1] = h.land === 'water' ? 'rough' : (h.k === segCount(S.run.n) ? 'green' : 'fairway');
+    sh.strokes = Math.max(0, sh.strokes - 1);
+  }
+  function hazardName(t, n = S.run.n) { const w = world(n); return t === 'bunker' && w.hazard ? w.hazard : t === 'water' && w.water ? w.water : TERRAIN[t]; }
   function autoIncome() { const d = swingDist(); return S.run.hitters.reduce((a, h) => a + helperRate(h) * helperValue(h) * d, 0); }
   function streakMult() { return 1 + Math.min(0.05 * S.run.streak, 0.15 * S.run.up.stance); }
   const tPD = () => 20 + 10 * skill('pd');
@@ -313,7 +328,7 @@ const E = (() => {
     meta.stats.holes++;
     const carry = Math.max(0, run.prog - holeLen(n)) + run.carry;
     run.carry = 0; run.greenWait = 0;
-    run.n++; run.shot = { k: 0, strokes: 0, lands: [] };
+    run.n++; run.shot = { k: 0, strokes: 0, lands: [] }; run.holeTime = 0; run.hazard = null;
     run.prog = o.waitPutt ? Math.min(carry, segBoundary(1) * 0.98) : carry;
     if (!silent) hooks.hole(Object.assign({ n, auto, worldDone: n % WORLD_HOLES === 0 }, sc));
     checkWorldLock();
@@ -436,7 +451,7 @@ const E = (() => {
     S.meta.medals -= c; S.meta.skills[id] = l + 1; return true;
   }
   function manualSwing(q) {
-    const run = S.run, meta = S.meta, qm = [0.5, 1, CFG.perfectMult][q];
+    const run = S.run, meta = S.meta, qm = [0.5, 1, critMult()][q];
     run.streakIdle = 0;
     if (q === 2) run.streak++; else run.streak = 0;
     meta.stats.swings++; if (q === 2) meta.stats.perfects++;
@@ -509,6 +524,7 @@ const E = (() => {
     autoBuy(o.manualRate || 0);
     if (run.locked) checkWorldLock();
     achTimer += dt; if (achTimer > 1) { achTimer = 0; checkAch(); }
+    patienceTick(dt);
   }
   function tickOnline(dtGame, dtReal) {
     const run = S.run;
@@ -541,14 +557,48 @@ const E = (() => {
     dayCheck();
     return { before, after: snapshot(), seconds, used, capped: used < seconds, profile: profileName, ms: performance.now() - t0, locked: S.run.locked, gate: gateBlocked() };
   }
-  // test tool: jump to the start of a world with a plausible build
+  // patience: staying long on one hole pays Medals and up to 2 bonus stars, so nobody has to go back and farm
+  function patienceTick(dt) {
+    const run = S.run, before = run.holeTime;
+    run.holeTime += dt;
+    const crossed = t => before < t && run.holeTime >= t;
+    for (let t = 600; t <= run.holeTime + 1e-9 && t <= 86400; t += 600) if (crossed(t)) { S.meta.medals += 1; }
+    for (const t of PATIENCE_STARS) if (crossed(t)) {
+      const b = S.meta.bonusStars || (S.meta.bonusStars = {});
+      b[run.n] = (b[run.n] || 0) + 1;
+      if (!silent) hooks.patience({ star: true, n: run.n });
+      checkWorldLock();
+    }
+  }
+  const PATIENCE_STARS = [1200, 3600];
+  function patienceNext() { const t = S.run.holeTime; const nx = PATIENCE_STARS.find(x => x > t); return nx == null ? null : nx - t; }
+  // the single upgrade that raises income the most per yard (also used by coach tips)
+  function bestUpgrade() {
+    const keys = S.run.hitters.map((_, i) => 'h' + i).concat(['power', 'timing', 'ball', 'accuracy', 'stance']);
+    const inc0 = incomeEst(0) || 1e-9;
+    let best = null;
+    for (const k of keys) {
+      const it = item(k); if (!it.ok || it.L >= it.max) continue;
+      const price = costAt(it, it.L);
+      let gain;
+      if (k === 'accuracy') { const e0 = expLie() * windMul(), b0 = gateBlocked(); it.L++; gain = inc0 * (expLie() * windMul() / e0 - 1) + (b0 && !gateBlocked() ? inc0 * 50 : 0); it.L--; }
+      else { it.L++; gain = incomeEst(0) - inc0; it.L--; }
+      const r = gain / price;
+      if (!best || r > best.r) best = { key: k, r, gainPct: gain / inc0, cost: price, ok: price <= S.run.yards };
+    }
+    return best;
+  }
+  // test tool: jump to the start of a world with a build that can actually play there
   function teleport(w) {
     const n = w * WORLD_HOLES + 1, run = S.run;
-    run.n = n; run.prog = 0; run.shot = { k: 0, strokes: 0, lands: [] }; run.locked = false;
+    run.n = n; run.prog = 0; run.shot = { k: 0, strokes: 0, lands: [] }; run.locked = false; run.holeTime = 0;
     for (let k = 1; k < n; k++) if (!S.meta.stars[k]) { S.meta.stars[k] = 2; S.meta.best[k] = parOf(k); S.meta.shots[k] = segCount(k); }
     run.up.power = Math.max(run.up.power, Math.round(n * 1.6)); run.up.accuracy = Math.max(run.up.accuracy, Math.round(n * 0.55));
     run.up.ball = Math.max(run.up.ball, Math.round(n * 0.7)); run.up.timing = Math.max(run.up.timing, Math.min(45, n));
-    run.hitters.forEach(h => { if (h.L < n) h.L = Math.round(n * 1.4); });
+    run.hitters.forEach(h => { if (h.L < n) h.L = Math.round(n * 1.4); if (!h.type) h.type = 'pow'; });
+    for (let g = 0; g < 400 && windControl() < world().wind + 2; g++) run.up.accuracy++;
+    // grow the build until the first shot of the hole takes about five minutes
+    for (let g = 0; g < 4000 && autoIncome() * 300 < segBoundary(1); g++) { run.up.power += 3; run.up.ball += 1; run.hitters.forEach(h => { h.L += 3; }); }
     if (!silent) hooks.world({ w });
   }
 
@@ -561,7 +611,8 @@ const E = (() => {
 
   return {
     hooks, fresh, attach, get, silence,
-    worldOf, world, holeIn, parOf, segCount, holeLen, terrainDiff, hasWater, msMult, ballMult, holeMult, pPerfect,
+    worldOf, world, holeIn, parOf, segCount, holeLen, terrainDiff, hasWater, msMult, ballMult, holeMult, pPerfect, critMult,
+    resolveHazard, hazardName, patienceNext, bestUpgrade, expLie,
     mMeta, metaParts, mTrophy, trophies, gearSum, itemScore,
     accuracy, windControl, holeWind, wind, windMul, windCycle, gateIdx, gateBlocked, shieldOn, heatF,
     terrainMult, landingOdds, curLie, lieMult, segBoundary,

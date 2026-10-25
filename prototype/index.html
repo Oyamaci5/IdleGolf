@@ -477,6 +477,29 @@ ul.plain li { margin: 3px 0; } ul.plain b { color: var(--ink); }
 .ach b { font-size: 16px; width: 20px; text-align: center; } .ach span { font: 700 13px/1.15 var(--f-num); display: block; } .ach small { color: var(--muted); font-size: 11px; }
 .ach.done { background: #fff8e3; border-color: var(--gold); }
 @media (max-width: 640px) { .rtable { grid-template-columns: repeat(2, minmax(0, 1fr)); } .daily { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* ---------- prototype 3.1 ---------- */
+.coach { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--panel); border: 2px solid var(--gold); border-radius: 8px; padding: 6px 10px; }
+.coach .face { width: 44px; height: 44px; border-radius: 50%; }
+.coach b { display: block; font: 800 12px/1 var(--f-num); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.coach span { font: 600 15px/1.25 var(--f-num); }
+.t-big { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.t-big div { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; text-align: center; }
+.t-big span { display: block; font: 700 11px/1 var(--f-num); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.t-big b { font: 800 26px/1.15 var(--f-num); }
+.t-big b small { font-size: 13px; color: var(--muted); }
+.warrow { display: inline-block; font-style: normal; color: var(--blue); margin-right: 4px; font-size: 18px; }
+.t-club { font: 600 15px/1.2 var(--f-num); text-align: center; }
+.t-proj { font: 800 18px/1.2 var(--f-num); text-align: center; color: var(--red); }
+.scorecard.mini td { min-width: 24px; padding: 5px 2px; }
+.pbar.big { height: 12px; }
+.pbar.gold i { background: var(--gold); }
+.starneed { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font: 600 14px/1.2 var(--f-num); }
+.big-btn { width: 100%; padding: 12px; font-size: 18px; margin-bottom: 4px; }
+#escOverlay { z-index: 46; }
+.escbox { background: var(--board); border: 3px solid #072218; border-radius: 8px; padding: 12px; width: min(480px, 100%); display: flex; flex-direction: column; gap: 8px; color: #fff; }
+.escbox b { font: 800 22px/1 var(--f-num); letter-spacing: 0.04em; text-transform: uppercase; }
+.escbox span { font: 600 14px/1.2 var(--f-num); color: #cfe6d8; }
+#escCanvas { width: 100%; aspect-ratio: 460 / 230; border-radius: 6px; cursor: pointer; display: block; touch-action: manipulation; }
 </style>
 
 <header class="board">
@@ -524,6 +547,7 @@ ul.plain li { margin: 3px 0; } ul.plain b { color: var(--ink); }
       <div class="bar"><div class="g90"></div><div class="fill" id="pfill"></div><div class="marks" id="pmarks"></div></div>
       <div class="row"><div id="pText" class="num"></div><span id="pEta"></span></div>
     </div>
+    <div class="coach" id="coach" hidden></div>
     <div class="reqline" id="reqLine"></div>
     <div class="chips">
       <div class="chip"><h4 data-en="Ball lie · next landing odds" data-tr="Topun yeri · sonraki düşüş olasılığı">Ball lie · next landing odds</h4><div class="v" id="lieV"></div><div class="lieodds" id="lieOdds"></div></div>
@@ -567,10 +591,14 @@ ul.plain li { margin: 3px 0; } ul.plain b { color: var(--ink); }
     </div>
     <div class="tside">
       <div id="tourSide"></div>
-      <div class="ringwrap"><p data-en="1. Drag the target on the hole. 2. Press Space (or click the ring) in the yellow zone. The yellow ellipse is where a good shot lands 95% of the time." data-tr="1. Sahada hedefi sürükle. 2. İbre sarı bölgedeyken Boşluk'a bas ya da halkaya tıkla. Sarı elips: iyi vuruşta topun %95 düşeceği alan.">1. Drag the target on the hole.</p></div>
+      <div class="ringwrap"><p data-en="Drag to aim · tap the ring in the yellow" data-tr="Nişan için sürükle · sarıda halkaya dokun">Drag to aim · tap the ring in the yellow</p></div>
       <button type="button" class="btn tclose" id="tourClose" data-en="Leave round" data-tr="Turdan çık">Leave round</button>
     </div>
   </div>
+</div>
+
+<div class="overlay" id="escOverlay" hidden>
+  <div class="escbox"><b id="escTitle">Escape!</b><canvas id="escCanvas"></canvas><span id="escInfo"></span></div>
 </div>
 
 <div id="toasts"></div>
@@ -581,5 +609,6 @@ ul.plain li { margin: 3px 0; } ul.plain b { color: var(--ink); }
 <script src="js/art.js"></script>
 <script src="js/scene.js"></script>
 <script src="js/putt.js"></script>
+<script src="js/escape.js"></script>
 <script src="js/tour.js"></script>
 <script src="js/ui.js"></script>

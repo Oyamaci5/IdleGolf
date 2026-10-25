@@ -4,6 +4,7 @@
 > - v6, 2026-10-25. v5 (`design/idle_golf_blueprint_v5.md`) olduğu gibi duruyor. Bu belge v5'in üstüne yazılır: değişen sistemleri baştan tanımlar, değişmeyenler için v5'e (o da gerekirse v4'e) atıf yapar.
 > - Kaynak: prototip 2 oynandıktan sonra gelen kullanıcı geri bildirimi. Kararların hepsi prototip 3'te (`prototype/`, kayıt anahtarı `parfabrikasi-proto-v3`) uygulandı. Sayılar o koddan alınmıştır: `js/data.js` (dünyalar, nadirlikler, ekipman, araştırma, başarımlar, kostümler), `js/econ.js` (ekonomi), `js/art.js` ve `js/scene.js` (görseller).
 > - Değişiklikler `[v6]` etiketli. **TBT** = test edilecek varsayım.
+> - **[v6.1]** Prototip 3.1 düzeltmeleri §16'da. Çeliştiği yerde §16 geçerlidir: Replay putt kaldırıldı, seviye tavanları kalktı, turnuva sadeleşti.
 > - **[v6] Dil kuralı:** Oyunun asıl dili **İngilizce**, ikinci dili Türkçe. Bu belge Türkçe yazılır ama her oyun kavramının **asıl adı İngilizcedir** ve ilk geçtiği yerde `English (Türkçe)` biçiminde verilir. Kod, veri anahtarları ve arayüz kopyası İngilizce kavramı kullanır; Türkçe yalnızca çeviridir. İki dilde aynı kavram tek bir terimle anılır.
 
 **Çalışma adı:** *Par Factory* (TR: Par Fabrikası; geçici)
@@ -396,3 +397,115 @@ v5 §14 geçerli. Değişen ve eklenenler:
 | M7b (değişti) | Takım ve araştırma | Helper uzmanlık ve rütbesi, Skills, 22 araştırma düğümü |
 | M7c (değişti) | Ekipman ve günlük | 10 nadirlik, 40 parça, 5 çanta, günlük ödül takvimi, ~45 başarım |
 | M6 (ek) | Görünüm testi | V6-1 kararı verildi |
+
+---
+
+## 16. [v6.1] Prototip 3.1 değişiklikleri (2026-10-25)
+
+> Prototip 3 oynandıktan sonraki geri bildirimle yapılan düzeltmeler. Bu bölüm önceki bölümlerle çeliştiği yerde **geçerlidir**. Kod: `prototype/` (aynı kayıt anahtarı `parfabrikasi-proto-v3`).
+
+### 16.1 Geri bildirim
+
+1. View B çok karmaşık; yalnızca en son toplar görünmeli.
+2. Turnuva ve günlük delikte sopa listesi anlamsız ("hep D seçili"), ayrıntı çok. Daha rekabetçi ama daha az karmaşık olmalı.
+3. 9. dünyada neden ilerlenemediği anlaşılmadı; "Next shot in: çok uzun" yazıyor. Geliştirilmesi gereken yer ipucu olarak gösterilmeli; ekranda yüzde ve "ünlü yüzler" olabilir.
+4. Worlds sekmesinde par ve skor neden var? Oyuncu yıldız kasmak için geri dönmemeli; bir sonraki delikte uzun zaman geçirmek ödül verebilir.
+5. Sekmelerde uzun açıklama yerine yerinde, kısa açıklama (mobil oyuncu okumaz).
+6. "TEE ×1.5" ne demek?
+7. Bunker, su, çamur gibi alanlara düşen toplar için mini oyun olmalı; oyunda değilken süre uzamalı.
+8. Clubhouse ve Stance'te neden seviye tavanı var?
+
+### 16.2 Kararlar
+
+| # | Karar | Geri bildirim | Önceki kuralın yerine |
+|---|---|---|---|
+| 44 | **View B sade:** golfçü başına yalnızca son top; yardımcı izleri ince ve soluk; ölçüm cihazı ve top yığını yok | 1 | §12 |
+| 45 | **Turnuva sade:** sopa listesi yok, sopa otomatik ve yalnızca adı görünür; sapma tablosu yerine tek satır sonuç; yan panelde 3 büyük sayı (bayrağa, rüzgâr, skor), mini skor kartı ve **tahmini sıra** | 2 | v5 #28–#29, §10 |
+| 46 | **Coach tips (Koç ipuçları):** ana ekranda tek satır, kurgusal koç yüzüyle; en büyük darboğazı bulur ve tek eylem önerir (Go/Buy düğmesi) | 3 | – |
+| 47 | Sahne üstünde durum etiketi: `HOLE 4 · 34%` ve zemin `TEE +50%` / `BUNKER −65%` | 3, 6 | "TEE ×1.50" etiketi |
+| 48 | **Geri dönüş yok:** Replay putt kaldırıldı; Worlds sekmesinde skor kartı yok, yalnızca dünya ilerlemesi ve yıldız çubuğu | 4 | #43'ün Replay kısmı, §4.3 |
+| 49 | **Patience bonus (Sabır ödülü):** bir delikte geçen her 10 dk +1 Medal; 20. ve 60. dakikada +1 bonus ★ (delik başına en fazla 2) | 4 | – |
+| 50 | **Hazard escape (Tehlike kaçışı):** bunker/su düşüşünde oyuncu aktifse mini oyun; başarı ceza vuruşunu siler ve topu dışarı çıkarır. Oyuncu yoksa ceza ve yavaşlama aynen | 7 | §3.3'ün cezası (yalnızca oyuncu yokken) |
+| 51 | Dünyaya göre tehlike adları (Mud pit, Dune, Snow drift, Crater, Debris field, Lava pool…) | 7 | TERRAIN adları |
+| 52 | **Seviye tavanı yok:** Timing, Stance, Clubhouse sınırsız; Timing 45'ten sonra mükemmel çarpanını büyütür | 8 | v5 §4.1 maks sütunu |
+| 53 | Sekmelerdeki açıklama paragrafları kaldırıldı; bağlamsal bilgi koç satırında | 5 | – |
+| 54 | Test aracı "dünyaya atla" oynanabilir bir kurulum yapar (ilk vuruş ~5 dk) | 3 | §15 Dev |
+
+### 16.3 Coach tips
+
+- Koçlar **kurgusal** karakterlerdir. Gerçek golfçülerin adı ya da görünüşü lisans gerektirir; v1.0'da lisanslı bir "efsane" karakter düşünülürse ayrıca değerlendirilir.
+
+| Coach | Konu |
+|---|---|
+| Coach Ada | Accuracy, wind, zemin |
+| Big Bruno | Power, en iyi yükseltme |
+| Swift Sam | Yardımcılar, yıldız, dünya kilidi |
+| Prof. Iris | Araştırma, ekipman, günlük ödül |
+
+- **Öncelik sırası** (ilk tutan gösterilir):
+  1. World locked → kaç ★ eksik, sabır ödülü.
+  2. Wind gate → eksik rüzgâr kontrolü ve en hızlı çözüm: Wind reading araştırması, Accuracy training, Accurate yardımcı, çanta, Compete; hangisi mümkünse.
+  3. Günlük ödül hazır.
+  4. Uzmanlığı seçilmemiş yardımcı.
+  5. Açılmamış çanta.
+  6. Rüzgâr cezası > %20.
+  7. Sıcak ve Cooling.
+  8. Zemin kaybı > %20.
+  9. Boş laboratuvar.
+  10. Rütbe atlatılabilir yardımcı.
+  11. Gelir/yarda oranı en iyi yükseltme (alınabilirse "Buy", değilse kaç dakika sonra).
+- Sonraki vuruş tahmini 3 günü aşarsa sayı yerine "Very slow here: follow the coach tip" yazılır.
+
+### 16.4 Hazard escape
+
+```
+tetik      : bunker ya da su düşüşü, son 60 s içinde dokunma/tuş, hız ≤ ×10, açık pencere/modal yok
+mekanik    : işaretçi 0↔1 salınır (0.9–1.2 /s), 4 s süre, yeşil bölgede durdur
+bölge      : clamp(0.14 + 0.012 × (Accuracy − terrainDiff), 0.07, 0.32)
+başarı     : bunker → fairway (son bölümse yeşil), su → rough; ceza vuruşu silinir
+başarısız  : ceza ve zemin çarpanı aynen
+oyuncu yok : mini oyun yok; ceza ve yavaşlama aynen (süre uzar)
+```
+
+**Dünyaya göre adlar:**
+
+| Dünya | Bunker | Su |
+|---|---|---|
+| Rainy Links | Mud pit | Puddle |
+| Storm Coast | Mud pit | Surf |
+| Deep Forest | Mud pit | Creek |
+| Dune Desert | Dune | Oasis |
+| Snow Peaks | Snow drift | Frozen pond |
+| Frozen Glacier | Ice crevasse | Thin ice |
+| Lunar Base | Crater | Dust pit |
+| Orbital Station | Debris field | Airlock gap |
+| Mercury | Slag | Lava pool |
+
+### 16.5 Patience bonus
+
+- `run.holeTime` delikte geçen oyun süresidir (çevrimdışı ve zaman atlama dahil); delik bitince sıfırlanır.
+- Her 600 s'de +1 Medal. 1 200 s ve 3 600 s'de o deliğe +1 bonus ★ (`meta.bonusStars[n]`, en fazla 2). Bonus yıldızlar toplam yıldıza ve dünya kilidine sayılır.
+- Delik başlığında `⏱ 12m (+★ in 8m)` gösterilir.
+- Simülasyon: araştırma yapmayan idle oyuncu delik 24'teki kapıda takılırken 2 bonus ★ alır. Toplam yıldızda ~%2–5 artış beklenir (TBT).
+
+### 16.6 Turnuva yan paneli
+
+| Alan | İçerik |
+|---|---|
+| Başlık | Mod, `Hole i/n`, `PAR p` |
+| Büyük sayılar | To pin (yd) · Wind (yön oku + km/h) · Score (par'a göre) |
+| Sopa | Otomatik seçilen sopanın adı ve zemin (ör. `Driver · Tee`) |
+| Rekabet | Turnuva: `Projected #k of 50`; günlük delik: günün ortalaması |
+| Skor kartı | Tek satır, birdie daire / bogey kare |
+| Sonuç satırı | `Good · 225 yd · 9 yd left (wind 2, luck 7) → Rough` |
+
+Tahmini sıra: `proj = rel + kalan_delik × (μ/9)`, `μ = 7 − 1.4 × lig`, `sıra ≈ 1 + 49 × Φ((proj − μ) / 3)`.
+
+### 16.7 Açık konular (v6.1)
+
+| # | Konu |
+|---|---|
+| V6-9 | Hazard escape sıklığı: geç dünyalarda bunker olasılığı yüksek; mini oyun yorucu olursa delik başına 1 ile sınırla |
+| V6-10 | Sabır ödülü kapıda takılmayı fazla ödüllendiriyor mu? |
+| V6-11 | Koç ipuçlarının sırası oyuncu testinde doğrulanmalı (en çok tıklanan / göz ardı edilen) |
+| V6-12 | Sopa seçimi tamamen otomatik kaldı; ileri ligde "lay-up / go for it" gibi tek bir seçim eklenebilir |
